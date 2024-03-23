@@ -1,8 +1,9 @@
 use std::fmt::Display;
 use std::iter::Peekable;
+use std::num::ParseIntError;
 use std::str::Chars;
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Eq)]
 pub enum Token {
     Assign,
     Bang,
@@ -36,33 +37,33 @@ pub enum Token {
 impl Display for Token {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Token::Assign => write!(f, "Assign"),
-            Token::Bang => write!(f, "Bang/Exlaim"),
-            Token::Comma => write!(f, "Comma"),
-            Token::Minus => write!(f, "Minus"),
-            Token::Else => write!(f, "Else"),
-            Token::Eof => write!(f, "Eof"),
-            Token::Eq => write!(f, "Equal"),
-            Token::False => write!(f, "False"),
-            Token::Function => write!(f, "Function"),
-            Token::Ident(x) => write!(f, "Ident {}", x),
-            Token::If => write!(f, "If"),
-            Token::Illegal => write!(f, "Illegal"),
-            Token::Int(x) => write!(f, "Int {}", x),
-            Token::Lbrace => write!(f, "Lbrace"),
-            Token::Less => write!(f, "Less"),
-            Token::Let => write!(f, "Let"),
-            Token::Lparen => write!(f, "Lparen"),
-            Token::More => write!(f, "More"),
-            Token::NotEq => write!(f, "Not Equal"),
-            Token::Plus => write!(f, "Plus"),
-            Token::Rbrace => write!(f, "Rbrace"),
-            Token::Return => write!(f, "Return"),
-            Token::Rparen => write!(f, "Rparen"),
-            Token::Semicolon => write!(f, "Semicolon"),
-            Token::Slash => write!(f, "Slash"),
-            Token::Star => write!(f, "Star"),
-            Token::True => write!(f, "True"),
+            Self::Assign => write!(f, "Assign"),
+            Self::Bang => write!(f, "Bang/Exlaim"),
+            Self::Comma => write!(f, "Comma"),
+            Self::Minus => write!(f, "Minus"),
+            Self::Else => write!(f, "Else"),
+            Self::Eof => write!(f, "Eof"),
+            Self::Eq => write!(f, "Equal"),
+            Self::False => write!(f, "False"),
+            Self::Function => write!(f, "Function"),
+            Self::Ident(x) => write!(f, "Ident {x}"),
+            Self::If => write!(f, "If"),
+            Self::Illegal => write!(f, "Illegal"),
+            Self::Int(x) => write!(f, "Int {x}"),
+            Self::Lbrace => write!(f, "Lbrace"),
+            Self::Less => write!(f, "Less"),
+            Self::Let => write!(f, "Let"),
+            Self::Lparen => write!(f, "Lparen"),
+            Self::More => write!(f, "More"),
+            Self::NotEq => write!(f, "Not Equal"),
+            Self::Plus => write!(f, "Plus"),
+            Self::Rbrace => write!(f, "Rbrace"),
+            Self::Return => write!(f, "Return"),
+            Self::Rparen => write!(f, "Rparen"),
+            Self::Semicolon => write!(f, "Semicolon"),
+            Self::Slash => write!(f, "Slash"),
+            Self::Star => write!(f, "Star"),
+            Self::True => write!(f, "True"),
         }
     }
 }
@@ -73,14 +74,14 @@ pub struct Lexer<'a> {
 }
 
 impl Lexer<'_> {
-    pub fn new(s: &String) -> Lexer {
+    pub fn new(s: &str) -> Lexer {
         let mut lex = Lexer {
             input: s.chars().peekable(),
             ch: '\0',
         };
         lex.read_char();
 
-        return lex;
+        lex
     }
 
     pub fn next(&mut self) -> Token {
@@ -101,7 +102,8 @@ impl Lexer<'_> {
                 }
             }
             '0'..='9' => {
-                let int = self.read_int();
+                // TODO: Handle if number was not parsable to int
+                let int = self.read_int().unwrap_or(-1);
                 Token::Int(int)
             }
             '=' => match self.input.peek().unwrap_or(&'\0') {
@@ -136,14 +138,11 @@ impl Lexer<'_> {
 
         self.read_char();
 
-        return tok;
+        tok
     }
 
     fn read_char(&mut self) {
-        self.ch = match self.input.next() {
-            Some(x) => x,
-            None => '\0',
-        };
+        self.ch = self.input.next().unwrap_or('\0');
     }
 
     fn read_ident(&mut self) -> String {
@@ -157,10 +156,10 @@ impl Lexer<'_> {
 
         build.shrink_to_fit();
 
-        return build;
+        build
     }
 
-    fn read_int(&mut self) -> isize {
+    fn read_int(&mut self) -> Result<isize, ParseIntError> {
         let mut build = String::with_capacity(64);
         build.insert(0, self.ch);
 
@@ -171,7 +170,7 @@ impl Lexer<'_> {
 
         build.shrink_to_fit();
 
-        return build.parse().unwrap();
+        build.parse()
     }
 
     fn skip_whitespace(&mut self) {
