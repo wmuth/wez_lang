@@ -14,8 +14,14 @@ fn main() -> Result<(), io::Error> {
         }
 
         let lex = Lexer::new(&input);
-        let par = Parser::new(lex);
+        let mut par = Parser::new(lex);
         let pro = par.parse_program();
+
+        let err = par.get_errors();
+
+        for e in err {
+            println!("{e}");
+        }
 
         for s in pro.statements {
             println!("{s}");

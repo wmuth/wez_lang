@@ -3,7 +3,7 @@ use std::iter::Peekable;
 use std::num::ParseIntError;
 use std::str::Chars;
 
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, PartialEq, Eq, Clone)]
 pub enum Token {
     Assign,
     Bang,
@@ -74,6 +74,7 @@ pub struct Lexer<'a> {
 }
 
 impl Lexer<'_> {
+    #[must_use]
     pub fn new(s: &str) -> Lexer {
         let mut lex = Lexer {
             input: s.chars().peekable(),
@@ -84,7 +85,7 @@ impl Lexer<'_> {
         lex
     }
 
-    pub fn next(&mut self) -> Token {
+    pub fn next_tok(&mut self) -> Token {
         self.skip_whitespace();
 
         let tok = match self.ch {
@@ -287,7 +288,7 @@ mod tests {
         ];
 
         for token in correct {
-            let next = lex.next();
+            let next = lex.next_tok();
             assert_eq!(next, token);
         }
     }
