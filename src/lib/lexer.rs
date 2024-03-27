@@ -1,90 +1,44 @@
-use std::fmt::Display;
+use crate::token::Token;
 use std::iter::Peekable;
 use std::num::ParseIntError;
 use std::str::Chars;
 
-#[derive(Debug, PartialEq, Eq, Clone)]
-pub enum Token {
-    Assign,
-    Bang,
-    Comma,
-    Minus,
-    Else,
-    Eof,
-    Eq,
-    False,
-    Function,
-    Ident(String),
-    If,
-    Illegal,
-    Int(isize),
-    Lbrace,
-    Less,
-    Let,
-    Lparen,
-    More,
-    NotEq,
-    Plus,
-    Rbrace,
-    Return,
-    Rparen,
-    Semicolon,
-    Slash,
-    Star,
-    True,
+/// The errors the [`Lexer`] can produce
+pub enum LexError {
+    Unparsable(String),
 }
 
-impl Display for Token {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            Self::Assign => write!(f, "Assign"),
-            Self::Bang => write!(f, "Bang/Exlaim"),
-            Self::Comma => write!(f, "Comma"),
-            Self::Minus => write!(f, "Minus"),
-            Self::Else => write!(f, "Else"),
-            Self::Eof => write!(f, "Eof"),
-            Self::Eq => write!(f, "Equal"),
-            Self::False => write!(f, "False"),
-            Self::Function => write!(f, "Function"),
-            Self::Ident(x) => write!(f, "Ident {x}"),
-            Self::If => write!(f, "If"),
-            Self::Illegal => write!(f, "Illegal"),
-            Self::Int(x) => write!(f, "Int {x}"),
-            Self::Lbrace => write!(f, "Lbrace"),
-            Self::Less => write!(f, "Less"),
-            Self::Let => write!(f, "Let"),
-            Self::Lparen => write!(f, "Lparen"),
-            Self::More => write!(f, "More"),
-            Self::NotEq => write!(f, "Not Equal"),
-            Self::Plus => write!(f, "Plus"),
-            Self::Rbrace => write!(f, "Rbrace"),
-            Self::Return => write!(f, "Return"),
-            Self::Rparen => write!(f, "Rparen"),
-            Self::Semicolon => write!(f, "Semicolon"),
-            Self::Slash => write!(f, "Slash"),
-            Self::Star => write!(f, "Star"),
-            Self::True => write!(f, "True"),
-        }
-    }
-}
-
+/// The lexer which lexes user input to [`Token`]
 pub struct Lexer<'a> {
-    input: Peekable<Chars<'a>>,
     ch: char,
+    errs: Vec<LexError>,
+    input: Peekable<Chars<'a>>,
 }
 
 impl Lexer<'_> {
+    /// Creates the [`Lexer`]
+    ///
+    /// # Parameters
+    /// - `s` the string of user input to lex
     #[must_use]
     pub fn new(s: &str) -> Lexer {
         let mut lex = Lexer {
-            input: s.chars().peekable(),
             ch: '\0',
+            errs: vec![],
+            input: s.chars().peekable(),
         };
         lex.read_char();
 
         lex
     }
 
+    /// Gets the vec of errors from the [`Lexer`]
+    #[must_use]
+    pub const fn get_errs(&self) -> &Vec<LexError> {
+        &self.errs
+    }
+
+    /// Returns the next [`Token`]
     pub fn next_tok(&mut self) -> Token {
         self.skip_whitespace();
 
@@ -102,11 +56,13 @@ impl Lexer<'_> {
                     _ => Token::Ident(ident),
                 }
             }
-            '0'..='9' => {
-                // TODO: Handle if number was not parsable to int
-                let int = self.read_int().unwrap_or(-1);
-                Token::Int(int)
-            }
+            '0'..='9' => match self.read_int() {
+                Ok(i) => Token::Int(i),
+                Err(e) => {
+                    self.errs.push(LexError::Unparsable(format!("{e}")));
+                    self.next_tok()
+                }
+            },
             '=' => match self.input.peek().unwrap_or(&'\0') {
                 '=' => {
                     self.read_char();
@@ -122,10 +78,10 @@ impl Lexer<'_> {
                 _ => Token::Bang,
             },
             ',' => Token::Comma,
-            '-' => Token::Minus,
             '{' => Token::Lbrace,
             '<' => Token::Less,
             '(' => Token::Lparen,
+            '-' => Token::Minus,
             '>' => Token::More,
             '+' => Token::Plus,
             '}' => Token::Rbrace,
@@ -147,7 +103,7 @@ impl Lexer<'_> {
     }
 
     fn read_ident(&mut self) -> String {
-        let mut build = String::with_capacity(64);
+        let mut build = String::with_capacity(32);
         build.insert(0, self.ch);
 
         while self.input.peek().unwrap_or(&'\0').is_alphabetic() {
@@ -161,7 +117,7 @@ impl Lexer<'_> {
     }
 
     fn read_int(&mut self) -> Result<isize, ParseIntError> {
-        let mut build = String::with_capacity(64);
+        let mut build = String::with_capacity(20);
         build.insert(0, self.ch);
 
         while self.input.peek().unwrap_or(&'\0').is_numeric() {
@@ -183,10 +139,11 @@ impl Lexer<'_> {
 
 #[cfg(test)]
 mod tests {
-    use super::{Lexer, Token};
+    use super::Lexer;
+    use crate::token::Token;
 
     #[test]
-    fn tokens_working_basic_monkey() {
+    fn tokens_working_basic() {
         let s = "let five = 5;
                   let ten = 10;
 
@@ -207,8 +164,8 @@ mod tests {
 
                   10 == 10;
                   10 != 9;";
-        let input = String::from(s);
-        let mut lex = Lexer::new(&input);
+
+        let mut lex = Lexer::new(s);
 
         let correct = vec![
             Token::Let,

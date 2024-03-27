@@ -7,6 +7,7 @@ fn main() -> Result<(), io::Error> {
 
     loop {
         print!("🐻‍❄️ >>> ");
+
         io::stdout().flush()?;
         io::stdin().read_line(&mut input)?;
         if input.trim_end().is_empty() {
@@ -18,11 +19,14 @@ fn main() -> Result<(), io::Error> {
         let pro = par.parse_program();
 
         let err = par.get_errors();
-
-        for e in err {
-            println!("{e}");
+        if !err.is_empty() {
+            println!("There were errors:");
+            for e in err {
+                println!("ERROR: {e}");
+            }
         }
 
+        println!("Parsed statements:");
         for s in pro.statements {
             println!("{s}");
         }
