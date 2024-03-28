@@ -15,7 +15,7 @@ pub enum Token {
     Ident(String),
     If,
     Illegal,
-    Int(isize),
+    Int(usize),
     Lbrace,
     Less,
     Let,

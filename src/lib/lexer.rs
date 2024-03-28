@@ -1,4 +1,5 @@
 use crate::token::Token;
+use std::fmt::Display;
 use std::iter::Peekable;
 use std::num::ParseIntError;
 use std::str::Chars;
@@ -6,6 +7,14 @@ use std::str::Chars;
 /// The errors the [`Lexer`] can produce
 pub enum LexError {
     Unparsable(String),
+}
+
+impl Display for LexError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Unparsable(s) => write!(f, "Unparsable \"{s}\""),
+        }
+    }
 }
 
 /// The lexer which lexes user input to [`Token`]
@@ -116,7 +125,7 @@ impl Lexer<'_> {
         build
     }
 
-    fn read_int(&mut self) -> Result<isize, ParseIntError> {
+    fn read_int(&mut self) -> Result<usize, ParseIntError> {
         let mut build = String::with_capacity(20);
         build.insert(0, self.ch);
 
@@ -127,7 +136,7 @@ impl Lexer<'_> {
 
         build.shrink_to_fit();
 
-        build.parse()
+        build.parse::<usize>()
     }
 
     fn skip_whitespace(&mut self) {

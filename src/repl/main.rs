@@ -18,11 +18,19 @@ fn main() -> Result<(), io::Error> {
         let mut par = Parser::new(lex);
         let pro = par.parse_program();
 
+        let err = par.get_lex_errors();
+        if !err.is_empty() {
+            println!("There were lexer errors:");
+            for e in err {
+                println!("LEXER ERR: {e}");
+            }
+        }
+
         let err = par.get_errors();
         if !err.is_empty() {
-            println!("There were errors:");
+            println!("There were parser errors:");
             for e in err {
-                println!("ERROR: {e}");
+                println!("PARSER ERR: {e}");
             }
         }
 

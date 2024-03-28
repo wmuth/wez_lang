@@ -2,7 +2,7 @@ use std::fmt::Display;
 
 use crate::{
     ast::{BlockStatement, Expression, Infix, Literal, Precedence, Prefix, Program, Statement},
-    lexer::Lexer,
+    lexer::{LexError, Lexer},
     token::Token,
 };
 
@@ -65,6 +65,12 @@ impl Parser<'_> {
     #[must_use]
     pub const fn get_errors(&self) -> &Vec<ParseError> {
         &self.errors
+    }
+
+    /// Returns the errors in the [`Lexer`] contained in the [`Parser`]
+    #[must_use]
+    pub const fn get_lex_errors(&self) -> &Vec<LexError> {
+        self.lexer.get_errs()
     }
 
     fn parse_stmt_type(&mut self) -> Result<Statement, ParseError> {
