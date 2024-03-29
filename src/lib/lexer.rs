@@ -86,6 +86,14 @@ impl Lexer<'_> {
                 }
                 _ => Token::Bang,
             },
+            '"' => {
+                if self.input.peek().unwrap_or(&'\0') == &'"' {
+                    self.read_char();
+                    Token::String(String::new())
+                } else {
+                    Token::String(self.read_str())
+                }
+            }
             ',' => Token::Comma,
             '{' => Token::Lbrace,
             '<' => Token::Less,
@@ -125,7 +133,7 @@ impl Lexer<'_> {
         build
     }
 
-    fn read_int(&mut self) -> Result<usize, ParseIntError> {
+    fn read_int(&mut self) -> Result<isize, ParseIntError> {
         let mut build = String::with_capacity(20);
         build.insert(0, self.ch);
 
@@ -136,7 +144,27 @@ impl Lexer<'_> {
 
         build.shrink_to_fit();
 
-        build.parse::<usize>()
+        build.parse()
+    }
+
+    fn read_str(&mut self) -> String {
+        self.read_char();
+
+        let mut build = String::with_capacity(64);
+        build.insert(0, self.ch);
+
+        while self.input.peek().unwrap_or(&'\0') != &'\0'
+            && self.input.peek().unwrap_or(&'\0') != &'"'
+        {
+            self.read_char();
+            build.push(self.ch);
+        }
+
+        self.read_char();
+
+        build.shrink_to_fit();
+
+        build
     }
 
     fn skip_whitespace(&mut self) {
@@ -172,7 +200,12 @@ mod tests {
                   }
 
                   10 == 10;
-                  10 != 9;";
+                  10 != 9;
+
+                  \"Hello Str\";
+                  \"\";
+                  \" \";
+                  ";
 
         let mut lex = Lexer::new(s);
 
@@ -249,6 +282,12 @@ mod tests {
             Token::Int(10),
             Token::NotEq,
             Token::Int(9),
+            Token::Semicolon,
+            Token::String(String::from("Hello Str")),
+            Token::Semicolon,
+            Token::String(String::new()),
+            Token::Semicolon,
+            Token::String(String::from(" ")),
             Token::Semicolon,
             Token::Eof,
         ];

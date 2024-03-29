@@ -15,7 +15,7 @@ pub enum Token {
     Ident(String),
     If,
     Illegal,
-    Int(usize),
+    Int(isize),
     Lbrace,
     Less,
     Let,
@@ -30,6 +30,7 @@ pub enum Token {
     Semicolon,
     Slash,
     Star,
+    String(String),
     True,
 }
 
@@ -62,6 +63,7 @@ impl Display for Token {
             Self::Semicolon => write!(f, "Semicolon"),
             Self::Slash => write!(f, "Slash"),
             Self::Star => write!(f, "Star"),
+            Self::String(s) => write!(f, "String {s}"),
             Self::True => write!(f, "True"),
         }
     }

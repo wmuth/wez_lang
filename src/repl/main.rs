@@ -1,7 +1,18 @@
-use std::io::{self, Write};
-use wez_lang_lib::{lexer::Lexer, parser::Parser};
+use std::{
+    cell::RefCell,
+    io::{self, Write},
+    rc::Rc,
+};
+use wez_lang_lib::{
+    environment::Environment,
+    evaluator::{Evaluator, PrintResult},
+    lexer::Lexer,
+    parser::Parser,
+};
 
 fn main() -> Result<(), io::Error> {
+    let env = Rc::new(RefCell::new(Environment::new(None)));
+
     let mut input = String::new();
     println!("Welcome to Wez-lang REPL!");
 
@@ -34,10 +45,8 @@ fn main() -> Result<(), io::Error> {
             }
         }
 
-        println!("Parsed statements:");
-        for s in pro.statements {
-            println!("{s}");
-        }
+        let mut e = Evaluator::new(Rc::clone(&env));
+        println!("{}", e.eval_program(&pro).ps());
 
         input.clear();
     }

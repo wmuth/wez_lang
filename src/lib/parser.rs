@@ -143,6 +143,7 @@ impl Parser<'_> {
             Token::If => self.parse_if(),
             Token::Int(_) | Token::False | Token::True => self.parse_literal(),
             Token::Lparen => self.parse_group(),
+            Token::String(_) => self.parse_str(),
             _ => Err(ParseError::UnexpectedToken(format!(
                 "No prefix parser for: {}",
                 self.cur_tok
@@ -290,7 +291,7 @@ impl Parser<'_> {
                 )))
             }
         } else {
-            Ok(BlockStatement { stmts: vec![] })
+            Ok(BlockStatement { statements: vec![] })
         }?;
 
         Ok(Expression::If {
@@ -310,7 +311,7 @@ impl Parser<'_> {
             self.next();
         }
 
-        Ok(BlockStatement { stmts })
+        Ok(BlockStatement { statements: stmts })
     }
 
     fn parse_fn(&mut self) -> Result<Expression, ParseError> {
@@ -391,6 +392,15 @@ impl Parser<'_> {
         }
     }
 
+    fn parse_str(&mut self) -> Result<Expression, ParseError> {
+        match &self.cur_tok {
+            Token::String(s) => Ok(Expression::Literal(Literal::String(s.clone()))),
+            _ => Err(ParseError::UnexpectedToken(String::from(
+                "Expected to parse string",
+            ))),
+        }
+    }
+
     fn next(&mut self) {
         std::mem::swap(&mut self.cur_tok, &mut self.peek_tok);
         self.peek_tok = self.lexer.next_tok();
@@ -424,7 +434,8 @@ mod tests {
              let y = 10;
              let z = 1234;
              let x = y + z;
-             let y = !z;",
+             let y = !z;
+             let s = \"string\"",
         );
 
         let l = Lexer::new(&s);
@@ -432,7 +443,7 @@ mod tests {
         let prog = p.parse_program();
 
         assert_eq!(p.get_errors().len(), 0, "More than 0 errors");
-        assert_eq!(prog.statements.len(), 5, "Incorrect number of statements");
+        assert_eq!(prog.statements.len(), 6, "Incorrect number of statements");
 
         let corr = vec![
             Statement::Let {
@@ -461,6 +472,10 @@ mod tests {
                     Prefix::Not,
                     Box::new(Expression::Ident(String::from("z"))),
                 ),
+            },
+            Statement::Let {
+                ident: String::from("s"),
+                expr: Expression::Literal(Literal::String(String::from("string"))),
             },
         ];
 
@@ -517,20 +532,21 @@ mod tests {
 
     #[test]
     fn test_literal_expr() {
-        let s = String::from("1337; 120; true; false;");
+        let s = String::from("1337; 120; true; false; \"foobar\";");
 
         let l = Lexer::new(&s);
         let mut p = Parser::new(l);
         let prog = p.parse_program();
 
         assert_eq!(p.get_errors().len(), 0, "More than 0 errors");
-        assert_eq!(prog.statements.len(), 4, "Incorrect number of statements");
+        assert_eq!(prog.statements.len(), 5, "Incorrect number of statements");
 
         let corr = vec![
             Statement::Expression(Expression::Literal(Literal::Int(1337))),
             Statement::Expression(Expression::Literal(Literal::Int(120))),
             Statement::Expression(Expression::Literal(Literal::Boolean(true))),
             Statement::Expression(Expression::Literal(Literal::Boolean(false))),
+            Statement::Expression(Expression::Literal(Literal::String(String::from("foobar")))),
         ];
 
         for (i, v) in corr.iter().enumerate() {
@@ -683,17 +699,17 @@ mod tests {
                     Box::new(Expression::Ident(String::from("y"))),
                 )),
                 then: BlockStatement {
-                    stmts: vec![Statement::Expression(Expression::Ident(String::from("x")))],
+                    statements: vec![Statement::Expression(Expression::Ident(String::from("x")))],
                 },
-                alt: BlockStatement { stmts: vec![] },
+                alt: BlockStatement { statements: vec![] },
             }),
             Statement::Expression(Expression::If {
                 cond: Box::new(Expression::Ident(String::from("x"))),
                 then: BlockStatement {
-                    stmts: vec![Statement::Expression(Expression::Ident(String::from("x")))],
+                    statements: vec![Statement::Expression(Expression::Ident(String::from("x")))],
                 },
                 alt: BlockStatement {
-                    stmts: vec![Statement::Expression(Expression::Ident(String::from("y")))],
+                    statements: vec![Statement::Expression(Expression::Ident(String::from("y")))],
                 },
             }),
         ];
@@ -717,19 +733,19 @@ mod tests {
         let corr = vec![
             Statement::Expression(Expression::Function {
                 body: BlockStatement {
-                    stmts: vec![Statement::Expression(Expression::Literal(Literal::Int(1)))],
+                    statements: vec![Statement::Expression(Expression::Literal(Literal::Int(1)))],
                 },
                 params: vec![],
             }),
             Statement::Expression(Expression::Function {
                 body: BlockStatement {
-                    stmts: vec![Statement::Expression(Expression::Ident(String::from("x")))],
+                    statements: vec![Statement::Expression(Expression::Ident(String::from("x")))],
                 },
                 params: vec![String::from("x")],
             }),
             Statement::Expression(Expression::Function {
                 body: BlockStatement {
-                    stmts: vec![Statement::Expression(Expression::Infix(
+                    statements: vec![Statement::Expression(Expression::Infix(
                         Infix::Plus,
                         Box::new(Expression::Ident(String::from("x"))),
                         Box::new(Expression::Ident(String::from("y"))),

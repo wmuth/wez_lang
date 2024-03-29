@@ -6,7 +6,7 @@ pub struct Program {
 }
 
 /// The differnt types of statements in the language
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, PartialEq, Eq, Clone)]
 pub enum Statement {
     Expression(Expression),
     Let { ident: String, expr: Expression },
@@ -14,7 +14,7 @@ pub enum Statement {
 }
 
 /// The different types of Expressions in the language
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, PartialEq, Eq, Clone)]
 pub enum Expression {
     Ident(String),
     Infix(Infix, Box<Expression>, Box<Expression>),
@@ -36,10 +36,10 @@ pub enum Expression {
 }
 
 /// The literal values the language represents
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, PartialEq, Eq, Clone)]
 pub enum Literal {
     Boolean(bool),
-    Int(usize),
+    Int(isize),
     String(String),
 }
 
@@ -58,14 +58,14 @@ pub enum Precedence {
 }
 
 /// The prefixes to be used in the prefix variant of [`Expression`]
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, PartialEq, Eq, Clone)]
 pub enum Prefix {
     Negative,
     Not,
 }
 
 /// The infixes to be used in the infix variant of [`Expression`]
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, PartialEq, Eq, Clone)]
 pub enum Infix {
     Eq,
     Less,
@@ -78,9 +78,9 @@ pub enum Infix {
 }
 
 /// A helper wrapper for repesenting block statements
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, PartialEq, Eq, Clone)]
 pub struct BlockStatement {
-    pub stmts: Vec<Statement>,
+    pub statements: Vec<Statement>,
 }
 
 impl Display for Statement {
@@ -111,6 +111,7 @@ impl Display for Expression {
             Self::Infix(i, l, r) => write!(f, "({l} {i} {r})"),
             Self::Literal(l) => write!(f, "{l}"),
             Self::Prefix(p, b) => write!(f, "({p} {b})"),
+            // TODO: Prettier print here
             Self::Call { args, ident } => write!(
                 f,
                 "{ident}({})",
@@ -153,7 +154,7 @@ impl Display for BlockStatement {
         write!(
             f,
             "{{{}}}",
-            self.stmts.iter().fold(String::new(), |mut o, v| {
+            self.statements.iter().fold(String::new(), |mut o, v| {
                 let _ = write!(o, "{v}; ");
                 o
             })
