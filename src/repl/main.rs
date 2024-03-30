@@ -3,14 +3,13 @@ use std::{
     io::{self, Write},
     rc::Rc,
 };
+
 use wez_lang_lib::{
-    builtins::get_builtin_fns,
-    environment::Environment,
-    evaluator::{Evaluator, PrintResult},
-    lexer::Lexer,
+    builtins::get_builtin_fns, environment::Environment, evaluator::Evaluator, lexer::Lexer,
     parser::Parser,
 };
 
+/// Runs the repl
 fn main() -> Result<(), io::Error> {
     let env = Rc::new(RefCell::new(Environment::new(None)));
     env.borrow_mut().add_map(get_builtin_fns());
@@ -48,7 +47,10 @@ fn main() -> Result<(), io::Error> {
         }
 
         let mut e = Evaluator::new(Rc::clone(&env));
-        println!("{}", e.eval_program(&pro).ps());
+        match e.eval_program(&pro) {
+            Ok(o) => println!("{o}"),
+            Err(e) => eprintln!("{e}"),
+        }
 
         input.clear();
     }

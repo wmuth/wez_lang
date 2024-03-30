@@ -255,16 +255,18 @@ impl Parser<'_> {
                 self.next();
                 Ok(exp)
             }
-            _ => Err(ParseError::UnexpectedToken(String::from(
-                "Missing ) in group statement",
+            _ => Err(ParseError::UnexpectedToken(format!(
+                "Missing ) in group statement, was: {}",
+                self.peek_tok
             ))),
         }
     }
 
     fn parse_if(&mut self) -> Result<Expression, ParseError> {
         if self.peek_tok != Token::Lparen {
-            return Err(ParseError::UnexpectedToken(String::from(
-                "If not followed by (",
+            return Err(ParseError::UnexpectedToken(format!(
+                "If not followed by (, was: {}",
+                self.peek_tok
             )));
         }
         self.next();
@@ -273,15 +275,17 @@ impl Parser<'_> {
         let cond = self.parse_expression(&Precedence::Lowest)?;
 
         if self.peek_tok != Token::Rparen {
-            return Err(ParseError::UnexpectedToken(String::from(
-                "If condition not followed by )",
+            return Err(ParseError::UnexpectedToken(format!(
+                "If condition not followed by ), was: {}",
+                self.peek_tok
             )));
         }
         self.next();
 
         if self.peek_tok != Token::Lbrace {
-            return Err(ParseError::UnexpectedToken(String::from(
-                "Block should start with {",
+            return Err(ParseError::UnexpectedToken(format!(
+                "Block should start with {{, was {}",
+                self.peek_tok
             )));
         }
         self.next();
@@ -294,8 +298,9 @@ impl Parser<'_> {
                 self.next();
                 Ok(self.parse_block()?)
             } else {
-                Err(ParseError::UnexpectedToken(String::from(
-                    "Block statement should start with {",
+                Err(ParseError::UnexpectedToken(format!(
+                    "Block statement should start with {{, was: {}",
+                    self.peek_tok
                 )))
             }
         } else {
@@ -324,8 +329,9 @@ impl Parser<'_> {
 
     fn parse_fn(&mut self) -> Result<Expression, ParseError> {
         if self.peek_tok != Token::Lparen {
-            return Err(ParseError::UnexpectedToken(String::from(
-                "Exptected ( after fn",
+            return Err(ParseError::UnexpectedToken(format!(
+                "Exptected ( after fn, was: {}",
+                self.peek_tok
             )));
         }
         self.next();
@@ -333,8 +339,9 @@ impl Parser<'_> {
         let params = self.parse_params()?;
 
         if self.peek_tok != Token::Lbrace {
-            return Err(ParseError::UnexpectedToken(String::from(
-                "Exptected start of body { after fn params )",
+            return Err(ParseError::UnexpectedToken(format!(
+                "Exptected start of body {{ after fn params ), was: {}",
+                self.peek_tok
             )));
         }
         self.next();
@@ -353,8 +360,9 @@ impl Parser<'_> {
                 Token::Ident(i) => params.push(i.clone()),
                 Token::Comma => (),
                 _ => {
-                    return Err(ParseError::UnexpectedToken(String::from(
-                        "Expected only idents and , in params",
+                    return Err(ParseError::UnexpectedToken(format!(
+                        "Expected only idents and , in params, was: {}",
+                        self.peek_tok
                     )));
                 }
             }
@@ -394,8 +402,9 @@ impl Parser<'_> {
                 self.next();
                 Ok(args)
             }
-            _ => Err(ParseError::UnexpectedToken(String::from(
-                "Expected ) at end of args",
+            _ => Err(ParseError::UnexpectedToken(format!(
+                "Expected ) at end of args, was: {}",
+                self.peek_tok
             ))),
         }
     }
@@ -403,8 +412,9 @@ impl Parser<'_> {
     fn parse_str(&mut self) -> Result<Expression, ParseError> {
         match &self.cur_tok {
             Token::String(s) => Ok(Expression::Literal(Literal::String(s.clone()))),
-            _ => Err(ParseError::UnexpectedToken(String::from(
-                "Expected to parse string",
+            _ => Err(ParseError::UnexpectedToken(format!(
+                "Expected to parse string, was: {}",
+                self.peek_tok
             ))),
         }
     }
@@ -414,7 +424,7 @@ impl Parser<'_> {
 
         if self.peek_tok == Token::Rbracket {
             self.next();
-            return Ok(Expression::Literal(Literal::Array(args)));
+            return Ok(Expression::Literal(Literal::List(args)));
         }
         self.next();
 
@@ -429,10 +439,11 @@ impl Parser<'_> {
         match self.peek_tok {
             Token::Rbracket => {
                 self.next();
-                Ok(Expression::Literal(Literal::Array(args)))
+                Ok(Expression::Literal(Literal::List(args)))
             }
-            _ => Err(ParseError::UnexpectedToken(String::from(
-                "Expected ] at end of arr",
+            _ => Err(ParseError::UnexpectedToken(format!(
+                "Expected ] at end of arr, was: {}",
+                self.peek_tok
             ))),
         }
     }
@@ -446,8 +457,9 @@ impl Parser<'_> {
             let k = self.parse_expression(&Precedence::Lowest)?;
 
             if self.peek_tok != Token::Colon {
-                return Err(ParseError::UnexpectedToken(String::from(
-                    "Key should be followed by :",
+                return Err(ParseError::UnexpectedToken(format!(
+                    "Key should be followed by :, was: {}",
+                    self.peek_tok
                 )));
             }
             self.next();
@@ -458,8 +470,9 @@ impl Parser<'_> {
             kvs.push((k, v));
 
             if self.peek_tok != Token::Rbrace && self.peek_tok != Token::Comma {
-                return Err(ParseError::UnexpectedToken(String::from(
-                    "Map needs : between values or } at end",
+                return Err(ParseError::UnexpectedToken(format!(
+                    "Map needs : between values or }} at end, was {}",
+                    self.peek_tok
                 )));
             }
 
@@ -473,8 +486,9 @@ impl Parser<'_> {
                 self.next();
                 Ok(Expression::Literal(Literal::Map(kvs)))
             }
-            _ => Err(ParseError::UnexpectedToken(String::from(
-                "Expected } at end of map",
+            _ => Err(ParseError::UnexpectedToken(format!(
+                "Expected }} at end of map, was: {}",
+                self.peek_tok
             ))),
         }
     }
@@ -905,7 +919,7 @@ mod tests {
         let corr = [
             Statement::Let {
                 ident: String::from("a"),
-                expr: Expression::Literal(Literal::Array(vec![
+                expr: Expression::Literal(Literal::List(vec![
                     Expression::Literal(Literal::Int(1)),
                     Expression::Literal(Literal::Int(2)),
                 ])),

@@ -17,7 +17,9 @@ pub enum Statement {
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub enum Expression {
     Ident(String),
+    /// Left is to index, right is which index
     Index(Box<Expression>, Box<Expression>),
+    /// Infix of left and right
     Infix(Infix, Box<Expression>, Box<Expression>),
     Literal(Literal),
     Prefix(Prefix, Box<Expression>),
@@ -39,9 +41,10 @@ pub enum Expression {
 /// The literal values the language represents
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub enum Literal {
-    Array(Vec<Expression>),
+    List(Vec<Expression>),
     Boolean(bool),
     Int(isize),
+    /// Vec<(k,v)> to then create map from in [`crate::evaluator::Evaluator`]
     Map(Vec<(Expression, Expression)>),
     String(String),
 }
@@ -101,7 +104,7 @@ impl Display for Statement {
 impl Display for Literal {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Self::Array(a) => write!(f, "[{}]", print_arr(a, ", ")),
+            Self::List(a) => write!(f, "[{}]", print_arr(a, ", ")),
             Self::Boolean(b) => write!(f, "{b}"),
             Self::Int(i) => write!(f, "{i}"),
             Self::Map(m) => write!(f, "{{{}}}", print_arr_pair(m, ", ")),
@@ -123,20 +126,6 @@ impl Display for Expression {
             Self::Prefix(p, b) => write!(f, "({p} {b})"),
         }
     }
-}
-
-fn print_arr(v: &[Expression], s: &str) -> String {
-    v.iter()
-        .map(ToString::to_string)
-        .collect::<Vec<String>>()
-        .join(s)
-}
-
-fn print_arr_pair(a: &[(Expression, Expression)], s: &str) -> String {
-    a.iter()
-        .map(|(k, v)| format!("{k}: {v}"))
-        .collect::<Vec<String>>()
-        .join(s)
 }
 
 impl Display for Prefix {
@@ -175,4 +164,20 @@ impl Display for BlockStatement {
             })
         )
     }
+}
+
+/// Helper func to print an array of expression
+fn print_arr(v: &[Expression], s: &str) -> String {
+    v.iter()
+        .map(ToString::to_string)
+        .collect::<Vec<String>>()
+        .join(s)
+}
+
+/// Helper func to print an array of expression pairs
+fn print_arr_pair(a: &[(Expression, Expression)], s: &str) -> String {
+    a.iter()
+        .map(|(k, v)| format!("{k}: {v}"))
+        .collect::<Vec<String>>()
+        .join(s)
 }

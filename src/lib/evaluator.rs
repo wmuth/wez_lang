@@ -1,61 +1,55 @@
-use std::{cell::RefCell, collections::HashMap, fmt::Display, num::TryFromIntError, rc::Rc};
+use std::{cell::RefCell, collections::HashMap, fmt::Display, rc::Rc};
 
 use crate::{
     ast::{BlockStatement, Expression, Infix, Literal, Prefix, Program, Statement},
+    builtins::BuiltinError,
     environment::Environment,
     object::Object,
 };
 
-// TODO: prettier errors
+/// The different errors which the [`Evaluator`] can produce
 #[derive(Debug, PartialEq, Eq)]
 pub enum EvalErr {
-    IncorrectNrOfArgs,
-    NotBool,
-    NotInMap,
-    NotInt,
-    OutOfRange,
-    UnboundIdent,
+    BuiltinError(String),
+    IncorrectNrOfArgs(usize),
+    NotBool(Object),
+    NotInMap(Object),
+    NotInt(Object),
+    OutOfRange(isize),
+    UnboundIdent(String),
     UnexpectedExpression(String),
 }
 
 impl Display for EvalErr {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Self::IncorrectNrOfArgs => write!(f, "Incorrect number of arguments passed"),
-            Self::NotBool => write!(f, "value was not bool"),
-            Self::NotInMap => write!(f, "key not in map"),
-            Self::NotInt => write!(f, "value was not int"),
-            Self::OutOfRange => write!(f, "index out of range"),
-            Self::UnboundIdent => write!(f, "ident not bound"),
+            Self::BuiltinError(s) => write!(f, "BuiltinError {s}"),
+            Self::NotBool(o) => write!(f, "Value {o} was not bool"),
+            Self::NotInMap(o) => write!(f, "Key {o} not in map"),
+            Self::NotInt(o) => write!(f, "Value {o} was not int"),
+            Self::OutOfRange(i) => write!(f, "Index {i} out of range"),
+            Self::UnboundIdent(s) => write!(f, "Ident {s} not bound"),
             Self::UnexpectedExpression(s) => write!(f, "{s}"),
+            Self::IncorrectNrOfArgs(nr) => {
+                write!(f, "Incorrect number of arguments passed. Expected {nr}")
+            }
         }
     }
 }
 
-impl From<TryFromIntError> for EvalErr {
-    fn from(_value: TryFromIntError) -> Self {
-        Self::OutOfRange
+impl From<BuiltinError> for EvalErr {
+    fn from(value: BuiltinError) -> Self {
+        Self::BuiltinError(format!("{value}"))
     }
 }
 
-pub trait PrintResult {
-    fn ps(&self) -> String;
-}
-
-impl PrintResult for Result<Object, EvalErr> {
-    fn ps(&self) -> String {
-        match self {
-            Ok(o) => format!("{o}"),
-            Err(e) => format!("{e}"),
-        }
-    }
-}
-
+/// The evaluator which evaluates our AST
 pub struct Evaluator {
     env: Rc<RefCell<Environment>>,
 }
 
 impl Evaluator {
+    #[must_use]
     pub fn new(env: Rc<RefCell<Environment>>) -> Self {
         Self { env }
     }
@@ -134,7 +128,7 @@ impl Evaluator {
         match func {
             Object::Function(params, block, env) => {
                 if params.len() != args.len() {
-                    return Err(EvalErr::IncorrectNrOfArgs);
+                    return Err(EvalErr::IncorrectNrOfArgs(params.len()));
                 }
 
                 let mut e_args = Vec::with_capacity(args.len());
@@ -164,7 +158,7 @@ impl Evaluator {
             Object::Builtin(f, nr_a) => {
                 if let Some(nr) = nr_a {
                     if nr as usize != args.len() {
-                        return Err(EvalErr::IncorrectNrOfArgs);
+                        return Err(EvalErr::IncorrectNrOfArgs(nr as usize));
                     }
                 }
 
@@ -177,7 +171,7 @@ impl Evaluator {
                     }
                 }
 
-                Ok(f(&e_args))
+                Ok(f(&e_args)?)
             }
             _ => Err(EvalErr::UnexpectedExpression(String::from(
                 "Can only call function",
@@ -192,8 +186,8 @@ impl Evaluator {
     fn eval_ident(&mut self, s: &str) -> Result<Object, EvalErr> {
         self.env
             .borrow_mut()
-            .get(String::from(s))
-            .map_or_else(|| Err(EvalErr::UnboundIdent), Ok)
+            .get(s)
+            .map_or_else(|| Err(EvalErr::UnboundIdent(String::from(s))), Ok)
     }
 
     fn eval_if(
@@ -211,7 +205,7 @@ impl Evaluator {
                 Ok(self.eval_blockstatement(alt)?)
             }
         } else {
-            Err(EvalErr::NotBool)
+            Err(EvalErr::NotBool(c))
         }
     }
 
@@ -261,21 +255,22 @@ impl Evaluator {
             }
         }
 
-        Ok(Object::Array(e))
+        Ok(Object::List(e))
     }
 
     fn eval_index(&mut self, a: &Expression, i: &Expression) -> Result<Object, EvalErr> {
         let ae = self.eval_expression(a)?;
 
         match ae {
-            Object::Array(a) => {
+            Object::List(a) => {
                 let ie = self.eval_expression(i)?;
 
                 if let Object::Int(idx) = ie {
-                    let uidx: usize = idx.try_into()?;
+                    let uidxr = TryInto::<usize>::try_into(idx);
+                    let uidx = uidxr.map_or_else(|_| Err(EvalErr::OutOfRange(idx)), Ok)?;
 
                     a.get(uidx)
-                        .map_or(Err(EvalErr::OutOfRange), |o| Ok(o.clone()))
+                        .map_or(Err(EvalErr::OutOfRange(idx)), |o| Ok(o.clone()))
                 } else {
                     Err(EvalErr::UnexpectedExpression(String::from(
                         "Can only index with int",
@@ -286,7 +281,7 @@ impl Evaluator {
                 let ie = self.eval_expression(i)?;
 
                 hm.get(&ie)
-                    .map_or(Err(EvalErr::NotInMap), |o| Ok(o.clone()))
+                    .map_or(Err(EvalErr::NotInMap(ie)), |o| Ok(o.clone()))
             }
             _ => Err(EvalErr::UnexpectedExpression(String::from(
                 "Can only index array or map",
@@ -296,7 +291,7 @@ impl Evaluator {
 
     fn eval_literal(&mut self, l: &Literal) -> Result<Object, EvalErr> {
         match l {
-            Literal::Array(a) => self.eval_arr(a),
+            Literal::List(a) => self.eval_arr(a),
             Literal::Boolean(b) => Ok(Object::Boolean(*b)),
             Literal::Int(i) => Ok(Object::Int(*i)),
             Literal::Map(v) => self.eval_map(v),
@@ -335,10 +330,10 @@ fn infix_lit_cmp(i: &Infix, le: &Object, re: &Object) -> Result<Object, EvalErr>
                         ))),
                     }
                 } else {
-                    Err(EvalErr::NotInt)
+                    Err(EvalErr::NotInt(re.clone()))
                 }
             }
-            _ => Err(EvalErr::NotInt),
+            _ => Err(EvalErr::NotInt(le.clone())),
         },
     }
 }
@@ -358,7 +353,7 @@ fn infix_plus(le: &Object, re: &Object) -> Result<Object, EvalErr> {
             if let Object::Int(rei) = re {
                 Ok(Object::Int(lei + rei))
             } else {
-                Err(EvalErr::NotInt)
+                Err(EvalErr::NotInt(re.clone()))
             }
         }
         _ => Err(EvalErr::UnexpectedExpression(String::from(
@@ -436,7 +431,7 @@ mod tests {
     #[test]
     fn test_eval_infix() {
         let s = String::from(
-            "5+5;5-5;5*5;5/5;5>5;5<5;5==5;5!=5;(1<2)==true;(1<2)==false;\"Hello \" + \"World!\";",
+            "5+5;5-5;5*5;5/5;5>5;5<5;5==5;5!=5;(1<2)==true;(1<2)==false;\"Hello \" + \"World!\"; 9%2;",
         );
 
         let l = Lexer::new(&s);
@@ -445,7 +440,7 @@ mod tests {
         let mut e = Evaluator::new(Rc::new(RefCell::new(Environment::new(None))));
 
         assert_eq!(p.get_errors().len(), 0, "More than 0 errors");
-        assert_eq!(prog.statements.len(), 11, "Incorrect number of statements");
+        assert_eq!(prog.statements.len(), 12, "Incorrect number of statements");
 
         let corr = [
             Object::Int(10),
@@ -459,6 +454,7 @@ mod tests {
             Object::Boolean(true),
             Object::Boolean(false),
             Object::String(String::from("Hello World!")),
+            Object::Int(1),
         ];
 
         for (i, v) in corr.iter().enumerate() {
@@ -501,9 +497,6 @@ mod tests {
         }
     }
 
-    // TODO: Create test that tests programs rather than statements
-    // e.g. test "0; return 1; 0;" as => Object::Int(1)
-    // helper fn to do let l let mut p let prog would be useful
     #[test]
     fn test_eval_return() {
         let s = String::from(
@@ -548,17 +541,17 @@ mod tests {
         assert_eq!(prog.statements.len(), 7, "Incorrect number of statements");
 
         let corr = [
-            EvalErr::NotInt,
-            EvalErr::NotInt,
+            EvalErr::NotInt(Object::Boolean(true)),
+            EvalErr::NotInt(Object::Boolean(true)),
             EvalErr::UnexpectedExpression(String::from(
                 "Can not add to anything but string and int",
             )),
             EvalErr::UnexpectedExpression(String::from("Can only negate ints")),
-            EvalErr::NotBool,
+            EvalErr::NotBool(Object::Int(5)),
             EvalErr::UnexpectedExpression(String::from(
                 "Can not add to anything but string and int",
             )),
-            EvalErr::UnboundIdent,
+            EvalErr::UnboundIdent(String::from("x")),
         ];
 
         for (i, v) in corr.iter().enumerate() {
@@ -571,7 +564,6 @@ mod tests {
         }
     }
 
-    // TODO: Whole program test here too!
     #[test]
     fn test_eval_let() {
         let s = String::from("let x = 10; x; let y = x + 10; y;");
@@ -683,7 +675,6 @@ mod tests {
                 len(\"\");
                 len(\"Hi\");
                 len(\"Hi there\");
-                len(1);
                 len([1,2]);
                 first([1,2]);
                 first(\"Hi\");
@@ -704,22 +695,21 @@ mod tests {
         let mut e = Evaluator::new(env);
 
         assert_eq!(p.get_errors().len(), 0, "More than 0 errors");
-        assert_eq!(prog.statements.len(), 13, "Incorrect number of statements");
+        assert_eq!(prog.statements.len(), 12, "Incorrect number of statements");
 
         let corr = [
             Object::Int(0),
             Object::Int(2),
             Object::Int(8),
-            Object::Null,
             Object::Int(2),
             Object::Int(1),
             Object::String(String::from("H")),
             Object::Int(2),
             Object::String(String::from("i")),
             Object::String(String::from("i")),
-            Object::Array(vec![Object::Int(2)]),
+            Object::List(vec![Object::Int(2)]),
             Object::String(String::from("Hi")),
-            Object::Array(vec![Object::Int(1), Object::Int(2), Object::Int(3)]),
+            Object::List(vec![Object::Int(1), Object::Int(2), Object::Int(3)]),
         ];
 
         for (i, v) in corr.iter().enumerate() {
@@ -734,7 +724,7 @@ mod tests {
 
     #[test]
     fn test_eval_bultins_err() {
-        let s = String::from("len(\"a\", \"b\");");
+        let s = String::from("len(\"a\", \"b\"); len(1); print();");
 
         let l = Lexer::new(&s);
         let mut p = Parser::new(l);
@@ -744,9 +734,16 @@ mod tests {
         let mut e = Evaluator::new(env);
 
         assert_eq!(p.get_errors().len(), 0, "More than 0 errors");
-        assert_eq!(prog.statements.len(), 1, "Incorrect number of statements");
+        assert_eq!(prog.statements.len(), 3, "Incorrect number of statements");
 
-        let corr = [EvalErr::IncorrectNrOfArgs];
+        let corr = [
+            EvalErr::IncorrectNrOfArgs(1),
+            EvalErr::BuiltinError(format!(
+                "{}",
+                BuiltinError::WrongType(String::from("List, Map or String"))
+            )),
+            EvalErr::BuiltinError(format!("{}", BuiltinError::NotEnoughArgs)),
+        ];
 
         for (i, v) in corr.iter().enumerate() {
             assert_eq!(
@@ -792,13 +789,13 @@ mod tests {
         let prog = p.parse_program();
         let env = Rc::new(RefCell::new(Environment::new(None)));
         env.borrow_mut()
-            .set(String::from("a"), Object::Array(vec![]));
+            .set(String::from("a"), Object::List(vec![]));
         let mut e = Evaluator::new(env);
 
         assert_eq!(p.get_errors().len(), 0, "More than 0 errors");
         assert_eq!(prog.statements.len(), 2, "Incorrect number of statements");
 
-        let corr = [EvalErr::OutOfRange, EvalErr::OutOfRange];
+        let corr = [EvalErr::OutOfRange(-1), EvalErr::OutOfRange(0)];
 
         for (i, v) in corr.iter().enumerate() {
             assert_eq!(
@@ -863,7 +860,7 @@ mod tests {
         let corr = [
             Object::Null,
             Object::Null,
-            Object::Array(vec![Object::Int(2), Object::Int(4), Object::Int(6)]),
+            Object::List(vec![Object::Int(2), Object::Int(4), Object::Int(6)]),
             Object::Null,
             Object::Null,
             Object::Int(6),
@@ -986,7 +983,7 @@ mod tests {
         assert_eq!(p.get_errors().len(), 0, "More than 0 errors");
         assert_eq!(prog.statements.len(), 1, "Incorrect number of statements");
 
-        let corr = [EvalErr::NotInMap];
+        let corr = [EvalErr::NotInMap(Object::Int(2))];
 
         for (i, v) in corr.iter().enumerate() {
             assert_eq!(
