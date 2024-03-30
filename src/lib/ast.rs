@@ -16,7 +16,9 @@ pub enum Statement {
 /// The different types of Expressions in the language
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub enum Expression {
+    Array(Vec<Expression>),
     Ident(String),
+    Index(Box<Expression>, Box<Expression>),
     Infix(Infix, Box<Expression>, Box<Expression>),
     Literal(Literal),
     Prefix(Prefix, Box<Expression>),
@@ -55,6 +57,7 @@ pub enum Precedence {
     Product,
     Prefix,
     Call,
+    Index,
 }
 
 /// The prefixes to be used in the prefix variant of [`Expression`]
@@ -106,23 +109,24 @@ impl Display for Literal {
 impl Display for Expression {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
+            Self::Array(v) => write!(f, "[{}]", print_arr(v, ", ")),
+            Self::Call { args, ident } => write!(f, "{ident}({})", print_arr(args, ", ")),
             Self::Function { body, params } => write!(f, "fn({}) {body}", params.join(", ")),
             Self::Ident(s) => write!(f, "{s}"),
+            Self::If { cond, alt, then } => write!(f, "If {cond} then {then} else {alt}"),
+            Self::Index(a, i) => write!(f, "{a}[{i}]"),
             Self::Infix(i, l, r) => write!(f, "({l} {i} {r})"),
             Self::Literal(l) => write!(f, "{l}"),
             Self::Prefix(p, b) => write!(f, "({p} {b})"),
-            // TODO: Prettier print here
-            Self::Call { args, ident } => write!(
-                f,
-                "{ident}({})",
-                args.iter().fold(String::new(), |mut o, v| {
-                    let _ = write!(o, "{v}, ");
-                    o
-                })
-            ),
-            Self::If { cond, alt, then } => write!(f, "If {cond} then {then} else {alt}"),
         }
     }
+}
+
+fn print_arr(v: &[Expression], s: &str) -> String {
+    v.iter()
+        .map(ToString::to_string)
+        .collect::<Vec<String>>()
+        .join(s)
 }
 
 impl Display for Prefix {

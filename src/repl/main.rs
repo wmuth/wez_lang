@@ -4,6 +4,7 @@ use std::{
     rc::Rc,
 };
 use wez_lang_lib::{
+    builtins::get_builtin_fns,
     environment::Environment,
     evaluator::{Evaluator, PrintResult},
     lexer::Lexer,
@@ -12,6 +13,7 @@ use wez_lang_lib::{
 
 fn main() -> Result<(), io::Error> {
     let env = Rc::new(RefCell::new(Environment::new(None)));
+    env.borrow_mut().add_map(get_builtin_fns());
 
     let mut input = String::new();
     println!("Welcome to Wez-lang REPL!");

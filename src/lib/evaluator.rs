@@ -1,4 +1,4 @@
-use std::{cell::RefCell, fmt::Display, rc::Rc};
+use std::{cell::RefCell, fmt::Display, num::TryFromIntError, rc::Rc};
 
 use crate::{
     ast::{BlockStatement, Expression, Infix, Literal, Prefix, Program, Statement},
@@ -12,6 +12,7 @@ pub enum EvalErr {
     IncorrectNrOfArgs,
     NotBool,
     NotInt,
+    OutOfRange,
     UnboundIdent,
     UnexpectedExpression(String),
 }
@@ -22,9 +23,16 @@ impl Display for EvalErr {
             Self::UnexpectedExpression(s) => write!(f, "{s}"),
             Self::UnboundIdent => write!(f, "ident not bound"),
             Self::NotInt => write!(f, "value was not int"),
+            Self::OutOfRange => write!(f, "index out of range"),
             Self::NotBool => write!(f, "value was not bool"),
             Self::IncorrectNrOfArgs => write!(f, "Incorrect number of arguments passed"),
         }
+    }
+}
+
+impl From<TryFromIntError> for EvalErr {
+    fn from(_value: TryFromIntError) -> Self {
+        Self::OutOfRange
     }
 }
 
@@ -98,10 +106,12 @@ impl Evaluator {
             Expression::Call { args, ident } => self.eval_call(args, ident),
             Expression::Function { body, params } => Ok(self.eval_function(body, params)),
             Expression::Ident(s) => self.eval_ident(s),
+            Expression::Index(a, i) => self.eval_index(a, i),
             Expression::If { cond, then, alt } => self.eval_if(cond, then, alt),
             Expression::Infix(i, l, r) => self.eval_infix(i, l, r),
             Expression::Literal(l) => Ok(eval_literal(l)),
             Expression::Prefix(p, e) => self.eval_prefix(p, e),
+            Expression::Array(a) => self.eval_arr(a),
         }
     }
 
@@ -149,6 +159,24 @@ impl Evaluator {
                 self.env = old_env;
 
                 obj
+            }
+            Object::Builtin(f, nr_a) => {
+                if let Some(nr) = nr_a {
+                    if nr as usize != args.len() {
+                        return Err(EvalErr::IncorrectNrOfArgs);
+                    }
+                }
+
+                let mut e_args = Vec::with_capacity(args.len());
+
+                for a in args {
+                    match self.eval_expression(a) {
+                        Ok(e) => e_args.push(e),
+                        Err(err) => return Err(err),
+                    }
+                }
+
+                Ok(f(&e_args))
             }
             _ => Err(EvalErr::UnexpectedExpression(String::from(
                 "Can only call function",
@@ -221,6 +249,42 @@ impl Evaluator {
             }
         }
     }
+
+    fn eval_arr(&mut self, a: &[Expression]) -> Result<Object, EvalErr> {
+        let mut e = Vec::with_capacity(a.len());
+
+        for i in a {
+            match self.eval_expression(i) {
+                Ok(o) => e.push(o),
+                Err(err) => return Err(err),
+            }
+        }
+
+        Ok(Object::Array(e))
+    }
+
+    fn eval_index(&mut self, a: &Expression, i: &Expression) -> Result<Object, EvalErr> {
+        let ae = self.eval_expression(a)?;
+
+        if let Object::Array(v) = ae {
+            let ie = self.eval_expression(i)?;
+
+            if let Object::Int(idx) = ie {
+                let uidx: usize = idx.try_into()?;
+
+                v.get(uidx)
+                    .map_or(Err(EvalErr::OutOfRange), |o| Ok(o.clone()))
+            } else {
+                Err(EvalErr::UnexpectedExpression(String::from(
+                    "Can only index with int",
+                )))
+            }
+        } else {
+            Err(EvalErr::UnexpectedExpression(String::from(
+                "Can only index array",
+            )))
+        }
+    }
 }
 
 fn eval_literal(l: &Literal) -> Object {
@@ -283,7 +347,7 @@ fn infix_plus(le: &Object, re: &Object) -> Result<Object, EvalErr> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{lexer::Lexer, object::Object, parser::Parser};
+    use crate::{builtins::get_builtin_fns, lexer::Lexer, object::Object, parser::Parser};
 
     #[test]
     fn test_eval_literal() {
@@ -297,7 +361,7 @@ mod tests {
         assert_eq!(p.get_errors().len(), 0, "More than 0 errors");
         assert_eq!(prog.statements.len(), 4, "Incorrect number of statements");
 
-        let corr = vec![
+        let corr = [
             Object::Int(5),
             Object::Int(10),
             Object::Boolean(true),
@@ -326,7 +390,7 @@ mod tests {
         assert_eq!(p.get_errors().len(), 0, "More than 0 errors");
         assert_eq!(prog.statements.len(), 5, "Incorrect number of statements");
 
-        let corr = vec![
+        let corr = [
             Object::Boolean(false),
             Object::Boolean(true),
             Object::Boolean(true),
@@ -358,7 +422,7 @@ mod tests {
         assert_eq!(p.get_errors().len(), 0, "More than 0 errors");
         assert_eq!(prog.statements.len(), 11, "Incorrect number of statements");
 
-        let corr = vec![
+        let corr = [
             Object::Int(10),
             Object::Int(0),
             Object::Int(25),
@@ -395,7 +459,7 @@ mod tests {
         assert_eq!(p.get_errors().len(), 0, "More than 0 errors");
         assert_eq!(prog.statements.len(), 4, "Incorrect number of statements");
 
-        let corr = vec![
+        let corr = [
             Object::Int(10),
             Object::Null,
             Object::Int(10),
@@ -429,7 +493,7 @@ mod tests {
         assert_eq!(p.get_errors().len(), 0, "More than 0 errors");
         assert_eq!(prog.statements.len(), 4, "Incorrect number of statements");
 
-        let corr = vec![
+        let corr = [
             Object::Return(Box::new(Object::Int(10))),
             Object::Return(Box::new(Object::Int(9))),
             Object::Int(10),
@@ -458,7 +522,7 @@ mod tests {
         assert_eq!(p.get_errors().len(), 0, "More than 0 errors");
         assert_eq!(prog.statements.len(), 7, "Incorrect number of statements");
 
-        let corr = vec![
+        let corr = [
             EvalErr::NotInt,
             EvalErr::NotInt,
             EvalErr::UnexpectedExpression(String::from(
@@ -495,7 +559,7 @@ mod tests {
         assert_eq!(p.get_errors().len(), 0, "More than 0 errors");
         assert_eq!(prog.statements.len(), 4, "Incorrect number of statements");
 
-        let corr = vec![Object::Null, Object::Int(10), Object::Null, Object::Int(20)];
+        let corr = [Object::Null, Object::Int(10), Object::Null, Object::Int(20)];
 
         for (i, v) in corr.iter().enumerate() {
             assert_eq!(
@@ -519,7 +583,7 @@ mod tests {
         assert_eq!(p.get_errors().len(), 0, "More than 0 errors");
         assert_eq!(prog.statements.len(), 3, "Incorrect number of statements");
 
-        let corr = vec![
+        let corr = [
             Object::Function(
                 vec![],
                 BlockStatement {
@@ -569,12 +633,215 @@ mod tests {
         assert_eq!(p.get_errors().len(), 0, "More than 0 errors");
         assert_eq!(prog.statements.len(), 5, "Incorrect number of statements");
 
-        let corr = vec![
+        let corr = [
             Object::Null,
             Object::Int(10),
             Object::Null,
             Object::Null,
             Object::Int(19),
+        ];
+
+        for (i, v) in corr.iter().enumerate() {
+            assert_eq!(
+                *v,
+                e.eval_statement(&prog.statements[i]).unwrap(),
+                "Error in statement {}",
+                i + 1
+            );
+        }
+    }
+
+    #[test]
+    fn test_eval_bultins_corr() {
+        let s = String::from(
+            "
+                len(\"\");
+                len(\"Hi\");
+                len(\"Hi there\");
+                len(1);
+                len([1,2]);
+                first([1,2]);
+                first(\"Hi\");
+                last([1,2]);
+                last(\"Hi\");
+                rest(\"Hi\");
+                rest([1, 2]);
+                push(\"H\", \"i\");
+                push([1, 2], 3);
+            ",
+        );
+
+        let l = Lexer::new(&s);
+        let mut p = Parser::new(l);
+        let prog = p.parse_program();
+        let env = Rc::new(RefCell::new(Environment::new(None)));
+        env.borrow_mut().add_map(get_builtin_fns());
+        let mut e = Evaluator::new(env);
+
+        assert_eq!(p.get_errors().len(), 0, "More than 0 errors");
+        assert_eq!(prog.statements.len(), 13, "Incorrect number of statements");
+
+        let corr = [
+            Object::Int(0),
+            Object::Int(2),
+            Object::Int(8),
+            Object::Null,
+            Object::Int(2),
+            Object::Int(1),
+            Object::String(String::from("H")),
+            Object::Int(2),
+            Object::String(String::from("i")),
+            Object::String(String::from("i")),
+            Object::Array(vec![Object::Int(2)]),
+            Object::String(String::from("Hi")),
+            Object::Array(vec![Object::Int(1), Object::Int(2), Object::Int(3)]),
+        ];
+
+        for (i, v) in corr.iter().enumerate() {
+            assert_eq!(
+                *v,
+                e.eval_statement(&prog.statements[i]).unwrap(),
+                "Error in statement {}",
+                i + 1
+            );
+        }
+    }
+
+    #[test]
+    fn test_eval_bultins_err() {
+        let s = String::from("len(\"a\", \"b\");");
+
+        let l = Lexer::new(&s);
+        let mut p = Parser::new(l);
+        let prog = p.parse_program();
+        let env = Rc::new(RefCell::new(Environment::new(None)));
+        env.borrow_mut().add_map(get_builtin_fns());
+        let mut e = Evaluator::new(env);
+
+        assert_eq!(p.get_errors().len(), 0, "More than 0 errors");
+        assert_eq!(prog.statements.len(), 1, "Incorrect number of statements");
+
+        let corr = [EvalErr::IncorrectNrOfArgs];
+
+        for (i, v) in corr.iter().enumerate() {
+            assert_eq!(
+                *v,
+                e.eval_statement(&prog.statements[i]).unwrap_err(),
+                "Error in statement {}",
+                i + 1
+            );
+        }
+    }
+
+    #[test]
+    fn test_eval_arr_corr() {
+        let s = String::from("let a = [1, 2]; a[0]");
+
+        let l = Lexer::new(&s);
+        let mut p = Parser::new(l);
+        let prog = p.parse_program();
+        let env = Rc::new(RefCell::new(Environment::new(None)));
+        let mut e = Evaluator::new(env);
+
+        assert_eq!(p.get_errors().len(), 0, "More than 0 errors");
+        assert_eq!(prog.statements.len(), 2, "Incorrect number of statements");
+
+        let corr = [Object::Null, Object::Int(1)];
+
+        for (i, v) in corr.iter().enumerate() {
+            assert_eq!(
+                *v,
+                e.eval_statement(&prog.statements[i]).unwrap(),
+                "Error in statement {}",
+                i + 1
+            );
+        }
+    }
+
+    #[test]
+    fn test_eval_arr_err() {
+        let s = String::from("a[-1]; a[0]");
+
+        let l = Lexer::new(&s);
+        let mut p = Parser::new(l);
+        let prog = p.parse_program();
+        let env = Rc::new(RefCell::new(Environment::new(None)));
+        env.borrow_mut()
+            .set(String::from("a"), Object::Array(vec![]));
+        let mut e = Evaluator::new(env);
+
+        assert_eq!(p.get_errors().len(), 0, "More than 0 errors");
+        assert_eq!(prog.statements.len(), 2, "Incorrect number of statements");
+
+        let corr = [EvalErr::OutOfRange, EvalErr::OutOfRange];
+
+        for (i, v) in corr.iter().enumerate() {
+            assert_eq!(
+                *v,
+                e.eval_statement(&prog.statements[i]).unwrap_err(),
+                "Error in statement {}",
+                i + 1
+            );
+        }
+    }
+
+    #[test]
+    fn test_eval_advanced_fns() {
+        let s = String::from(
+            "
+                let map = fn(arr, f) {
+                    let iter = fn(arr, acc) {
+                        if (len(arr) == 0) {
+                            acc
+                        } else {
+                            iter(rest(arr), push(acc, f(first(arr))));
+                        }
+                    };
+
+                    iter(arr, []);
+                };
+
+                let double = fn(x) { x * 2 };
+
+                map([1, 2, 3], double);
+
+                let reduce = fn(arr, init, f) {
+                    let iter = fn(arr, result) {
+                        if (len(arr) == 0) {
+                            result
+                        } else {
+                            iter(rest(arr), f(result, first(arr)));
+                        }
+                    };
+
+                    iter(arr, init);
+                };
+
+                let sum = fn(arr) {
+                    reduce(arr, 0, fn(init, v) { init + v });
+                };
+
+                sum([1, 2, 3]);
+            ",
+        );
+
+        let l = Lexer::new(&s);
+        let mut p = Parser::new(l);
+        let prog = p.parse_program();
+        let env = Rc::new(RefCell::new(Environment::new(None)));
+        env.borrow_mut().add_map(get_builtin_fns());
+        let mut e = Evaluator::new(env);
+
+        assert_eq!(p.get_errors().len(), 0, "More than 0 errors");
+        assert_eq!(prog.statements.len(), 6, "Incorrect number of statements");
+
+        let corr = [
+            Object::Null,
+            Object::Null,
+            Object::Array(vec![Object::Int(2), Object::Int(4), Object::Int(6)]),
+            Object::Null,
+            Object::Null,
+            Object::Int(6),
         ];
 
         for (i, v) in corr.iter().enumerate() {

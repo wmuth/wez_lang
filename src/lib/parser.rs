@@ -142,6 +142,7 @@ impl Parser<'_> {
             Token::Ident(_) => self.parse_ident(),
             Token::If => self.parse_if(),
             Token::Int(_) | Token::False | Token::True => self.parse_literal(),
+            Token::Lbracket => self.parse_arr(),
             Token::Lparen => self.parse_group(),
             Token::String(_) => self.parse_str(),
             _ => Err(ParseError::UnexpectedToken(format!(
@@ -166,6 +167,10 @@ impl Parser<'_> {
                 Token::Lparen => {
                     self.next();
                     l = self.parse_call(l)?;
+                }
+                Token::Lbracket => {
+                    self.next();
+                    l = self.parse_index(l)?;
                 }
                 _ => break,
             }
@@ -401,6 +406,47 @@ impl Parser<'_> {
         }
     }
 
+    fn parse_arr(&mut self) -> Result<Expression, ParseError> {
+        Ok(Expression::Array(self.parse_arr_vals()?))
+    }
+
+    fn parse_arr_vals(&mut self) -> Result<Vec<Expression>, ParseError> {
+        let mut args = vec![];
+
+        if self.peek_tok == Token::Rbracket {
+            self.next();
+            return Ok(args);
+        }
+        self.next();
+
+        args.push(self.parse_expression(&Precedence::Lowest)?);
+
+        while self.peek_tok == Token::Comma {
+            self.next();
+            self.next();
+            args.push(self.parse_expression(&Precedence::Lowest)?);
+        }
+
+        match self.peek_tok {
+            Token::Rbracket => {
+                self.next();
+                Ok(args)
+            }
+            _ => Err(ParseError::UnexpectedToken(String::from(
+                "Expected ] at end of arr",
+            ))),
+        }
+    }
+
+    fn parse_index(&mut self, l: Expression) -> Result<Expression, ParseError> {
+        self.next();
+
+        let exprs = self.parse_expression(&Precedence::Lowest)?;
+        self.next();
+
+        Ok(Expression::Index(Box::new(l), Box::new(exprs)))
+    }
+
     fn next(&mut self) {
         std::mem::swap(&mut self.cur_tok, &mut self.peek_tok);
         self.peek_tok = self.lexer.next_tok();
@@ -410,6 +456,7 @@ impl Parser<'_> {
 const fn token_to_precedence(t: &Token) -> Precedence {
     match t {
         Token::Eq | Token::NotEq => Precedence::Equals,
+        Token::Lbracket => Precedence::Index,
         Token::Less | Token::More => Precedence::LessMore,
         Token::Lparen => Precedence::Call,
         Token::Plus | Token::Minus => Precedence::Sum,
@@ -445,7 +492,7 @@ mod tests {
         assert_eq!(p.get_errors().len(), 0, "More than 0 errors");
         assert_eq!(prog.statements.len(), 6, "Incorrect number of statements");
 
-        let corr = vec![
+        let corr = [
             Statement::Let {
                 ident: String::from("x"),
                 expr: Expression::Literal(Literal::Int(5)),
@@ -495,7 +542,7 @@ mod tests {
         assert_eq!(p.get_errors().len(), 0, "More than 0 errors");
         assert_eq!(prog.statements.len(), 2, "Incorrect number of statements");
 
-        let corr = vec![
+        let corr = [
             Statement::Return(Expression::Literal(Literal::Int(5))),
             Statement::Return(Expression::Infix(
                 Infix::Minus,
@@ -520,7 +567,7 @@ mod tests {
         assert_eq!(p.get_errors().len(), 0, "More than 0 errors");
         assert_eq!(prog.statements.len(), 2, "Incorrect number of statements");
 
-        let corr = vec![
+        let corr = [
             Statement::Expression(Expression::Ident(String::from("test"))),
             Statement::Expression(Expression::Ident(String::from("foobar"))),
         ];
@@ -541,7 +588,7 @@ mod tests {
         assert_eq!(p.get_errors().len(), 0, "More than 0 errors");
         assert_eq!(prog.statements.len(), 5, "Incorrect number of statements");
 
-        let corr = vec![
+        let corr = [
             Statement::Expression(Expression::Literal(Literal::Int(1337))),
             Statement::Expression(Expression::Literal(Literal::Int(120))),
             Statement::Expression(Expression::Literal(Literal::Boolean(true))),
@@ -565,7 +612,7 @@ mod tests {
         assert_eq!(p.get_errors().len(), 0, "More than 0 errors");
         assert_eq!(prog.statements.len(), 2, "Incorrect number of statements");
 
-        let corr = vec![
+        let corr = [
             Statement::Expression(Expression::Prefix(
                 Prefix::Negative,
                 Box::new(Expression::Literal(Literal::Int(5))),
@@ -595,7 +642,7 @@ mod tests {
         assert_eq!(p.get_errors().len(), 0, "More than 0 errors");
         assert_eq!(prog.statements.len(), 8, "Incorrect number of statements");
 
-        let corr = vec![
+        let corr = [
             Statement::Expression(Expression::Infix(
                 Infix::Plus,
                 Box::new(Expression::Literal(Literal::Int(5))),
@@ -654,7 +701,7 @@ mod tests {
         assert_eq!(p.get_errors().len(), 0, "More than 0 errors");
         assert_eq!(prog.statements.len(), 2, "Incorrect number of statements");
 
-        let corr = vec![
+        let corr = [
             Statement::Expression(Expression::Infix(
                 Infix::Plus,
                 Box::new(Expression::Literal(Literal::Int(1))),
@@ -691,7 +738,7 @@ mod tests {
         assert_eq!(p.get_errors().len(), 0, "More than 0 errors");
         assert_eq!(prog.statements.len(), 2, "Incorrect number of statements");
 
-        let corr = vec![
+        let corr = [
             Statement::Expression(Expression::If {
                 cond: Box::new(Expression::Infix(
                     Infix::Less,
@@ -730,7 +777,7 @@ mod tests {
         assert_eq!(p.get_errors().len(), 0, "More than 0 errors");
         assert_eq!(prog.statements.len(), 3, "Incorrect number of statements");
 
-        let corr = vec![
+        let corr = [
             Statement::Expression(Expression::Function {
                 body: BlockStatement {
                     statements: vec![Statement::Expression(Expression::Literal(Literal::Int(1)))],
@@ -771,7 +818,7 @@ mod tests {
         assert_eq!(p.get_errors().len(), 0, "More than 0 errors");
         assert_eq!(prog.statements.len(), 3, "Incorrect number of statements");
 
-        let corr = vec![
+        let corr = [
             Statement::Expression(Expression::Call {
                 args: vec![],
                 ident: Box::new(Expression::Ident(String::from("next"))),
@@ -796,6 +843,36 @@ mod tests {
                 ],
                 ident: Box::new(Expression::Ident(String::from("add"))),
             }),
+        ];
+
+        for (i, v) in corr.iter().enumerate() {
+            assert_eq!(*v, prog.statements[i], "Error in statement {}", i + 1);
+        }
+    }
+
+    #[test]
+    fn test_arr_expr() {
+        let s = String::from("let a = [1, 2]; a[0];");
+
+        let l = Lexer::new(&s);
+        let mut p = Parser::new(l);
+        let prog = p.parse_program();
+
+        assert_eq!(p.get_errors().len(), 0, "More than 0 errors");
+        assert_eq!(prog.statements.len(), 2, "Incorrect number of statements");
+
+        let corr = [
+            Statement::Let {
+                ident: String::from("a"),
+                expr: Expression::Array(vec![
+                    Expression::Literal(Literal::Int(1)),
+                    Expression::Literal(Literal::Int(2)),
+                ]),
+            },
+            Statement::Expression(Expression::Index(
+                Box::new(Expression::Ident(String::from("a"))),
+                Box::new(Expression::Literal(Literal::Int(0))),
+            )),
         ];
 
         for (i, v) in corr.iter().enumerate() {

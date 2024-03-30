@@ -17,6 +17,10 @@ impl Environment {
         }
     }
 
+    pub fn add_map(&mut self, m: HashMap<String, Object>) {
+        self.map.extend(m);
+    }
+
     pub fn set(&mut self, s: String, o: Object) {
         *self.map.entry(s).or_insert(o) = o.clone();
     }

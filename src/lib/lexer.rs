@@ -96,12 +96,14 @@ impl Lexer<'_> {
             }
             ',' => Token::Comma,
             '{' => Token::Lbrace,
+            '[' => Token::Lbracket,
             '<' => Token::Less,
             '(' => Token::Lparen,
             '-' => Token::Minus,
             '>' => Token::More,
             '+' => Token::Plus,
             '}' => Token::Rbrace,
+            ']' => Token::Rbracket,
             ')' => Token::Rparen,
             ';' => Token::Semicolon,
             '/' => Token::Slash,
@@ -205,6 +207,8 @@ mod tests {
                   \"Hello Str\";
                   \"\";
                   \" \";
+                  let x = [1, \"two\"];
+                  x[0];
                   ";
 
         let mut lex = Lexer::new(s);
@@ -289,12 +293,26 @@ mod tests {
             Token::Semicolon,
             Token::String(String::from(" ")),
             Token::Semicolon,
+            Token::Let,
+            Token::Ident(String::from("x")),
+            Token::Assign,
+            Token::Lbracket,
+            Token::Int(1),
+            Token::Comma,
+            Token::String(String::from("two")),
+            Token::Rbracket,
+            Token::Semicolon,
+            Token::Ident(String::from("x")),
+            Token::Lbracket,
+            Token::Int(0),
+            Token::Rbracket,
+            Token::Semicolon,
             Token::Eof,
         ];
 
-        for token in correct {
+        for (i, token) in correct.into_iter().enumerate() {
             let next = lex.next_tok();
-            assert_eq!(next, token);
+            assert_eq!(next, token, "Error with token {i}");
         }
     }
 }
