@@ -43,7 +43,7 @@ impl Lexer<'_> {
 
     /// Gets the vec of errors from the [`Lexer`]
     #[must_use]
-    pub const fn get_errs(&self) -> &Vec<LexError> {
+    pub fn get_errs(&self) -> &[LexError] {
         &self.errs
     }
 

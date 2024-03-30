@@ -63,13 +63,13 @@ impl Parser<'_> {
 
     /// Returns the errors the [`Parser`] produced
     #[must_use]
-    pub const fn get_errors(&self) -> &Vec<ParseError> {
+    pub fn get_errors(&self) -> &[ParseError] {
         &self.errors
     }
 
     /// Returns the errors in the [`Lexer`] contained in the [`Parser`]
     #[must_use]
-    pub const fn get_lex_errors(&self) -> &Vec<LexError> {
+    pub fn get_lex_errors(&self) -> &[LexError] {
         self.lexer.get_errs()
     }
 

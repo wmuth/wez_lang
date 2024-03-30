@@ -21,3 +21,12 @@ name = "wez_lang_lib"
 path = "src/lib/lib.rs"
 
 [dependencies]
+
+[profile.dev]
+debug = 0
+
+[profile.release]
+lto = true
+codegen-units = 1
+panic = "abort"
+

@@ -117,7 +117,7 @@ impl Evaluator {
         Ok(Object::Return(Box::new(self.eval_expression(e)?)))
     }
 
-    fn eval_call(&mut self, args: &Vec<Expression>, ident: &Expression) -> Result<Object, EvalErr> {
+    fn eval_call(&mut self, args: &[Expression], ident: &Expression) -> Result<Object, EvalErr> {
         let func = self.eval_expression(ident)?;
 
         match func {
@@ -126,7 +126,7 @@ impl Evaluator {
                     return Err(EvalErr::IncorrectNrOfArgs);
                 }
 
-                let mut e_args = Vec::with_capacity(args.capacity());
+                let mut e_args = Vec::with_capacity(args.len());
 
                 for a in args {
                     match self.eval_expression(a) {

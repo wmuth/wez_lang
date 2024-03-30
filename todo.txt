@@ -1,0 +1,9 @@
+Finish book
+Apply all clippy lints
+Fix all TODOs
+Evaluator bench inputs to evaluated program object
+Improve code, improve tests
+Comment finished code everywhere, make sure it makes sense
+Write proper rustdoc
+Create the wezlang unique symbols, whatever they are
+Write the readme about what the language supports as well as all the syntax
