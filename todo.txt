@@ -1,5 +1,3 @@
-Finish book
-Apply all clippy lints
 Fix all TODOs
 Evaluator bench inputs to evaluated program object
 Improve code, improve tests

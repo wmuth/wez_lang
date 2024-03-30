@@ -42,6 +42,7 @@ pub enum Literal {
     Array(Vec<Expression>),
     Boolean(bool),
     Int(isize),
+    Map(Vec<(Expression, Expression)>),
     String(String),
 }
 
@@ -75,6 +76,7 @@ pub enum Infix {
     Minus,
     More,
     NotEq,
+    Percent,
     Plus,
     Slash,
     Star,
@@ -99,9 +101,10 @@ impl Display for Statement {
 impl Display for Literal {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Self::Array(v) => write!(f, "[{}]", print_arr(v, ", ")),
+            Self::Array(a) => write!(f, "[{}]", print_arr(a, ", ")),
             Self::Boolean(b) => write!(f, "{b}"),
             Self::Int(i) => write!(f, "{i}"),
+            Self::Map(m) => write!(f, "{{{}}}", print_arr_pair(m, ", ")),
             Self::String(s) => write!(f, "\"{s}\""),
         }
     }
@@ -129,6 +132,13 @@ fn print_arr(v: &[Expression], s: &str) -> String {
         .join(s)
 }
 
+fn print_arr_pair(a: &[(Expression, Expression)], s: &str) -> String {
+    a.iter()
+        .map(|(k, v)| format!("{k}: {v}"))
+        .collect::<Vec<String>>()
+        .join(s)
+}
+
 impl Display for Prefix {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
@@ -146,6 +156,7 @@ impl Display for Infix {
             Self::Minus => write!(f, "-"),
             Self::More => write!(f, ">"),
             Self::NotEq => write!(f, "!="),
+            Self::Percent => write!(f, "%"),
             Self::Plus => write!(f, "+"),
             Self::Slash => write!(f, "/"),
             Self::Star => write!(f, "*"),

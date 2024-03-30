@@ -142,6 +142,7 @@ impl Parser<'_> {
             Token::Ident(_) => self.parse_ident(),
             Token::If => self.parse_if(),
             Token::Int(_) | Token::False | Token::True => self.parse_literal(),
+            Token::Lbrace => self.parse_map(),
             Token::Lbracket => self.parse_arr(),
             Token::Lparen => self.parse_group(),
             Token::String(_) => self.parse_str(),
@@ -158,6 +159,7 @@ impl Parser<'_> {
                 | Token::Minus
                 | Token::More
                 | Token::NotEq
+                | Token::Percent
                 | Token::Plus
                 | Token::Slash
                 | Token::Star => {
@@ -223,6 +225,7 @@ impl Parser<'_> {
             Token::Minus => Ok(Infix::Minus),
             Token::More => Ok(Infix::More),
             Token::NotEq => Ok(Infix::NotEq),
+            Token::Percent => Ok(Infix::Percent),
             Token::Plus => Ok(Infix::Plus),
             Token::Slash => Ok(Infix::Slash),
             Token::Star => Ok(Infix::Star),
@@ -407,15 +410,11 @@ impl Parser<'_> {
     }
 
     fn parse_arr(&mut self) -> Result<Expression, ParseError> {
-        Ok(Expression::Literal(Literal::Array(self.parse_arr_vals()?)))
-    }
-
-    fn parse_arr_vals(&mut self) -> Result<Vec<Expression>, ParseError> {
         let mut args = vec![];
 
         if self.peek_tok == Token::Rbracket {
             self.next();
-            return Ok(args);
+            return Ok(Expression::Literal(Literal::Array(args)));
         }
         self.next();
 
@@ -430,10 +429,52 @@ impl Parser<'_> {
         match self.peek_tok {
             Token::Rbracket => {
                 self.next();
-                Ok(args)
+                Ok(Expression::Literal(Literal::Array(args)))
             }
             _ => Err(ParseError::UnexpectedToken(String::from(
                 "Expected ] at end of arr",
+            ))),
+        }
+    }
+
+    fn parse_map(&mut self) -> Result<Expression, ParseError> {
+        let mut kvs = vec![];
+
+        while self.peek_tok != Token::Rbrace {
+            self.next();
+
+            let k = self.parse_expression(&Precedence::Lowest)?;
+
+            if self.peek_tok != Token::Colon {
+                return Err(ParseError::UnexpectedToken(String::from(
+                    "Key should be followed by :",
+                )));
+            }
+            self.next();
+            self.next();
+
+            let v = self.parse_expression(&Precedence::Lowest)?;
+
+            kvs.push((k, v));
+
+            if self.peek_tok != Token::Rbrace && self.peek_tok != Token::Comma {
+                return Err(ParseError::UnexpectedToken(String::from(
+                    "Map needs : between values or } at end",
+                )));
+            }
+
+            if self.peek_tok == Token::Comma {
+                self.next();
+            }
+        }
+
+        match self.peek_tok {
+            Token::Rbrace => {
+                self.next();
+                Ok(Expression::Literal(Literal::Map(kvs)))
+            }
+            _ => Err(ParseError::UnexpectedToken(String::from(
+                "Expected } at end of map",
             ))),
         }
     }
@@ -460,7 +501,7 @@ const fn token_to_precedence(t: &Token) -> Precedence {
         Token::Less | Token::More => Precedence::LessMore,
         Token::Lparen => Precedence::Call,
         Token::Plus | Token::Minus => Precedence::Sum,
-        Token::Slash | Token::Star => Precedence::Product,
+        Token::Percent | Token::Slash | Token::Star => Precedence::Product,
         _ => Precedence::Lowest,
     }
 }
@@ -867,6 +908,47 @@ mod tests {
                 expr: Expression::Literal(Literal::Array(vec![
                     Expression::Literal(Literal::Int(1)),
                     Expression::Literal(Literal::Int(2)),
+                ])),
+            },
+            Statement::Expression(Expression::Index(
+                Box::new(Expression::Ident(String::from("a"))),
+                Box::new(Expression::Literal(Literal::Int(0))),
+            )),
+        ];
+
+        for (i, v) in corr.iter().enumerate() {
+            assert_eq!(*v, prog.statements[i], "Error in statement {}", i + 1);
+        }
+    }
+
+    #[test]
+    fn test_map_expr() {
+        let s = String::from("{}; {1: 1}; let a = {1: 1, 2: 2}; a[0];");
+
+        let l = Lexer::new(&s);
+        let mut p = Parser::new(l);
+        let prog = p.parse_program();
+
+        assert_eq!(p.get_errors().len(), 0, "More than 0 errors");
+        assert_eq!(prog.statements.len(), 4, "Incorrect number of statements");
+
+        let corr = [
+            Statement::Expression(Expression::Literal(Literal::Map(vec![]))),
+            Statement::Expression(Expression::Literal(Literal::Map(vec![(
+                Expression::Literal(Literal::Int(1)),
+                Expression::Literal(Literal::Int(1)),
+            )]))),
+            Statement::Let {
+                ident: String::from("a"),
+                expr: Expression::Literal(Literal::Map(vec![
+                    (
+                        Expression::Literal(Literal::Int(1)),
+                        Expression::Literal(Literal::Int(1)),
+                    ),
+                    (
+                        Expression::Literal(Literal::Int(2)),
+                        Expression::Literal(Literal::Int(2)),
+                    ),
                 ])),
             },
             Statement::Expression(Expression::Index(

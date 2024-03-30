@@ -1,4 +1,4 @@
-use std::{cell::RefCell, fmt::Display, num::TryFromIntError, rc::Rc};
+use std::{cell::RefCell, collections::HashMap, fmt::Display, num::TryFromIntError, rc::Rc};
 
 use crate::{
     ast::{BlockStatement, Expression, Infix, Literal, Prefix, Program, Statement},
@@ -11,6 +11,7 @@ use crate::{
 pub enum EvalErr {
     IncorrectNrOfArgs,
     NotBool,
+    NotInMap,
     NotInt,
     OutOfRange,
     UnboundIdent,
@@ -20,12 +21,13 @@ pub enum EvalErr {
 impl Display for EvalErr {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Self::UnexpectedExpression(s) => write!(f, "{s}"),
-            Self::UnboundIdent => write!(f, "ident not bound"),
+            Self::IncorrectNrOfArgs => write!(f, "Incorrect number of arguments passed"),
+            Self::NotBool => write!(f, "value was not bool"),
+            Self::NotInMap => write!(f, "key not in map"),
             Self::NotInt => write!(f, "value was not int"),
             Self::OutOfRange => write!(f, "index out of range"),
-            Self::NotBool => write!(f, "value was not bool"),
-            Self::IncorrectNrOfArgs => write!(f, "Incorrect number of arguments passed"),
+            Self::UnboundIdent => write!(f, "ident not bound"),
+            Self::UnexpectedExpression(s) => write!(f, "{s}"),
         }
     }
 }
@@ -265,23 +267,30 @@ impl Evaluator {
     fn eval_index(&mut self, a: &Expression, i: &Expression) -> Result<Object, EvalErr> {
         let ae = self.eval_expression(a)?;
 
-        if let Object::Array(v) = ae {
-            let ie = self.eval_expression(i)?;
+        match ae {
+            Object::Array(a) => {
+                let ie = self.eval_expression(i)?;
 
-            if let Object::Int(idx) = ie {
-                let uidx: usize = idx.try_into()?;
+                if let Object::Int(idx) = ie {
+                    let uidx: usize = idx.try_into()?;
 
-                v.get(uidx)
-                    .map_or(Err(EvalErr::OutOfRange), |o| Ok(o.clone()))
-            } else {
-                Err(EvalErr::UnexpectedExpression(String::from(
-                    "Can only index with int",
-                )))
+                    a.get(uidx)
+                        .map_or(Err(EvalErr::OutOfRange), |o| Ok(o.clone()))
+                } else {
+                    Err(EvalErr::UnexpectedExpression(String::from(
+                        "Can only index with int",
+                    )))
+                }
             }
-        } else {
-            Err(EvalErr::UnexpectedExpression(String::from(
-                "Can only index array",
-            )))
+            Object::Map(hm) => {
+                let ie = self.eval_expression(i)?;
+
+                hm.get(&ie)
+                    .map_or(Err(EvalErr::NotInMap), |o| Ok(o.clone()))
+            }
+            _ => Err(EvalErr::UnexpectedExpression(String::from(
+                "Can only index array or map",
+            ))),
         }
     }
 
@@ -290,8 +299,21 @@ impl Evaluator {
             Literal::Array(a) => self.eval_arr(a),
             Literal::Boolean(b) => Ok(Object::Boolean(*b)),
             Literal::Int(i) => Ok(Object::Int(*i)),
+            Literal::Map(v) => self.eval_map(v),
             Literal::String(s) => Ok(Object::String(s.clone())),
         }
+    }
+
+    fn eval_map(&mut self, v: &[(Expression, Expression)]) -> Result<Object, EvalErr> {
+        let mut map = HashMap::new();
+
+        for (ke, ve) in v {
+            let k = self.eval_expression(ke)?;
+            let v = self.eval_expression(ve)?;
+            map.insert(k, v);
+        }
+
+        Ok(Object::Map(map))
     }
 }
 
@@ -305,6 +327,7 @@ fn infix_lit_cmp(i: &Infix, le: &Object, re: &Object) -> Result<Object, EvalErr>
                         Infix::Less => Ok(Object::Boolean(lei < rei)),
                         Infix::Minus => Ok(Object::Int(lei - rei)),
                         Infix::More => Ok(Object::Boolean(lei > rei)),
+                        Infix::Percent => Ok(Object::Int(lei % rei)),
                         Infix::Slash => Ok(Object::Int(lei / rei)),
                         Infix::Star => Ok(Object::Int(lei * rei)),
                         _ => Err(EvalErr::UnexpectedExpression(format!(
@@ -346,6 +369,8 @@ fn infix_plus(le: &Object, re: &Object) -> Result<Object, EvalErr> {
 
 #[cfg(test)]
 mod tests {
+    use std::collections::HashMap;
+
     use super::*;
     use crate::{builtins::get_builtin_fns, lexer::Lexer, object::Object, parser::Parser};
 
@@ -848,6 +873,125 @@ mod tests {
             assert_eq!(
                 *v,
                 e.eval_statement(&prog.statements[i]).unwrap(),
+                "Error in statement {}",
+                i + 1
+            );
+        }
+    }
+
+    #[test]
+    fn test_eval_fizzbuzz() {
+        let s = String::from(
+            "
+                let reduce = fn(arr, init, f) {
+                    let iter = fn(arr, result) {
+                        if (len(arr) == 0) {
+                            result
+                        } else {
+                            iter(rest(arr), f(result, first(arr)));
+                        }
+                    };
+
+                    iter(arr, init);
+                };
+
+                let fizzbuzz = fn(init, n) {
+                    let v = \"\";
+
+                    if (n % 3 == 0) {
+                        let v = v + \"Wizz\";
+                    }
+
+                    if (n % 5 == 0) {
+                        let v = v + \"Buzz\";
+                    }
+
+                    init + v
+                };
+
+                reduce([3, 5, 15], \"\", fizzbuzz);
+            ",
+        );
+
+        let l = Lexer::new(&s);
+        let mut p = Parser::new(l);
+        let prog = p.parse_program();
+        let env = Rc::new(RefCell::new(Environment::new(None)));
+        env.borrow_mut().add_map(get_builtin_fns());
+        let mut e = Evaluator::new(env);
+
+        assert_eq!(p.get_errors().len(), 0, "More than 0 errors");
+        assert_eq!(prog.statements.len(), 3, "Incorrect number of statements");
+
+        let corr = [
+            Object::Null,
+            Object::Null,
+            Object::String(String::from("WizzBuzzWizzBuzz")),
+        ];
+
+        for (i, v) in corr.iter().enumerate() {
+            assert_eq!(
+                *v,
+                e.eval_statement(&prog.statements[i]).unwrap(),
+                "Error in statement {}",
+                i + 1
+            );
+        }
+    }
+
+    #[test]
+    fn test_eval_map_corr() {
+        let s =
+            String::from("{1:1, 2:2}; {1:1, \"two\":\"two\"}[1]; {1:1, \"two\":\"two\"}[\"two\"];");
+
+        let l = Lexer::new(&s);
+        let mut p = Parser::new(l);
+        let prog = p.parse_program();
+        let env = Rc::new(RefCell::new(Environment::new(None)));
+        let mut e = Evaluator::new(env);
+
+        assert_eq!(p.get_errors().len(), 0, "More than 0 errors");
+        assert_eq!(prog.statements.len(), 3, "Incorrect number of statements");
+
+        let mut map = HashMap::new();
+        map.insert(Object::Int(1), Object::Int(1));
+        map.insert(Object::Int(2), Object::Int(2));
+
+        let corr = [
+            Object::Map(map),
+            Object::Int(1),
+            Object::String(String::from("two")),
+        ];
+
+        for (i, v) in corr.iter().enumerate() {
+            assert_eq!(
+                *v,
+                e.eval_statement(&prog.statements[i]).unwrap(),
+                "Error in statement {}",
+                i + 1
+            );
+        }
+    }
+
+    #[test]
+    fn test_eval_map_err() {
+        let s = String::from("{1:1}[2];");
+
+        let l = Lexer::new(&s);
+        let mut p = Parser::new(l);
+        let prog = p.parse_program();
+        let env = Rc::new(RefCell::new(Environment::new(None)));
+        let mut e = Evaluator::new(env);
+
+        assert_eq!(p.get_errors().len(), 0, "More than 0 errors");
+        assert_eq!(prog.statements.len(), 1, "Incorrect number of statements");
+
+        let corr = [EvalErr::NotInMap];
+
+        for (i, v) in corr.iter().enumerate() {
+            assert_eq!(
+                *v,
+                e.eval_statement(&prog.statements[i]).unwrap_err(),
                 "Error in statement {}",
                 i + 1
             );

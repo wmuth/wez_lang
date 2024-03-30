@@ -94,6 +94,7 @@ impl Lexer<'_> {
                     Token::String(self.read_str())
                 }
             }
+            ':' => Token::Colon,
             ',' => Token::Comma,
             '{' => Token::Lbrace,
             '[' => Token::Lbracket,
@@ -101,6 +102,7 @@ impl Lexer<'_> {
             '(' => Token::Lparen,
             '-' => Token::Minus,
             '>' => Token::More,
+            '%' => Token::Percent,
             '+' => Token::Plus,
             '}' => Token::Rbrace,
             ']' => Token::Rbracket,
@@ -207,8 +209,14 @@ mod tests {
                   \"Hello Str\";
                   \"\";
                   \" \";
+
                   let x = [1, \"two\"];
                   x[0];
+
+                  let x = {1: 1, 2: 2};
+                  x[1];
+
+                  10 % 2;
                   ";
 
         let mut lex = Lexer::new(s);
@@ -306,6 +314,28 @@ mod tests {
             Token::Lbracket,
             Token::Int(0),
             Token::Rbracket,
+            Token::Semicolon,
+            Token::Let,
+            Token::Ident(String::from("x")),
+            Token::Assign,
+            Token::Lbrace,
+            Token::Int(1),
+            Token::Colon,
+            Token::Int(1),
+            Token::Comma,
+            Token::Int(2),
+            Token::Colon,
+            Token::Int(2),
+            Token::Rbrace,
+            Token::Semicolon,
+            Token::Ident(String::from("x")),
+            Token::Lbracket,
+            Token::Int(1),
+            Token::Rbracket,
+            Token::Semicolon,
+            Token::Int(10),
+            Token::Percent,
+            Token::Int(2),
             Token::Semicolon,
             Token::Eof,
         ];

@@ -6,6 +6,7 @@ use std::fmt::Display;
 pub enum Token {
     Assign,
     Bang,
+    Colon,
     Comma,
     Else,
     Eof,
@@ -24,6 +25,7 @@ pub enum Token {
     Minus,
     More,
     NotEq,
+    Percent,
     Plus,
     Rbrace,
     Rbracket,
@@ -41,6 +43,7 @@ impl Display for Token {
         match self {
             Self::Assign => write!(f, "Assign"),
             Self::Bang => write!(f, "Bang/Exlaim"),
+            Self::Colon => write!(f, "Colon"),
             Self::Comma => write!(f, "Comma"),
             Self::Else => write!(f, "Else"),
             Self::Eof => write!(f, "Eof"),
@@ -59,6 +62,7 @@ impl Display for Token {
             Self::Minus => write!(f, "Minus"),
             Self::More => write!(f, "More"),
             Self::NotEq => write!(f, "Not Equal"),
+            Self::Percent => write!(f, "Percent"),
             Self::Plus => write!(f, "Plus"),
             Self::Rbrace => write!(f, "Rbrace"),
             Self::Rbracket => write!(f, "Rbracket"),

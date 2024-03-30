@@ -9,6 +9,7 @@ pub fn get_builtin_fns() -> HashMap<String, Object> {
     map.insert(String::from("last"), Object::Builtin(last, Some(1)));
     map.insert(String::from("rest"), Object::Builtin(rest, Some(1)));
     map.insert(String::from("push"), Object::Builtin(push, Some(2)));
+    map.insert(String::from("print"), Object::Builtin(print, None));
     map
 }
 
@@ -70,6 +71,13 @@ fn push(v: &[Object]) -> Object {
                 _ => Object::Null,
             };
         }
+    }
+    Object::Null
+}
+
+fn print(v: &[Object]) -> Object {
+    for o in v {
+        println!("{o}");
     }
     Object::Null
 }
