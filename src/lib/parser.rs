@@ -407,7 +407,7 @@ impl Parser<'_> {
     }
 
     fn parse_arr(&mut self) -> Result<Expression, ParseError> {
-        Ok(Expression::Array(self.parse_arr_vals()?))
+        Ok(Expression::Literal(Literal::Array(self.parse_arr_vals()?)))
     }
 
     fn parse_arr_vals(&mut self) -> Result<Vec<Expression>, ParseError> {
@@ -864,10 +864,10 @@ mod tests {
         let corr = [
             Statement::Let {
                 ident: String::from("a"),
-                expr: Expression::Array(vec![
+                expr: Expression::Literal(Literal::Array(vec![
                     Expression::Literal(Literal::Int(1)),
                     Expression::Literal(Literal::Int(2)),
-                ]),
+                ])),
             },
             Statement::Expression(Expression::Index(
                 Box::new(Expression::Ident(String::from("a"))),

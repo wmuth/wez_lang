@@ -109,9 +109,8 @@ impl Evaluator {
             Expression::Index(a, i) => self.eval_index(a, i),
             Expression::If { cond, then, alt } => self.eval_if(cond, then, alt),
             Expression::Infix(i, l, r) => self.eval_infix(i, l, r),
-            Expression::Literal(l) => Ok(eval_literal(l)),
+            Expression::Literal(l) => self.eval_literal(l),
             Expression::Prefix(p, e) => self.eval_prefix(p, e),
-            Expression::Array(a) => self.eval_arr(a),
         }
     }
 
@@ -285,13 +284,14 @@ impl Evaluator {
             )))
         }
     }
-}
 
-fn eval_literal(l: &Literal) -> Object {
-    match l {
-        Literal::Boolean(b) => Object::Boolean(*b),
-        Literal::Int(i) => Object::Int(*i),
-        Literal::String(s) => Object::String(s.clone()),
+    fn eval_literal(&mut self, l: &Literal) -> Result<Object, EvalErr> {
+        match l {
+            Literal::Array(a) => self.eval_arr(a),
+            Literal::Boolean(b) => Ok(Object::Boolean(*b)),
+            Literal::Int(i) => Ok(Object::Int(*i)),
+            Literal::String(s) => Ok(Object::String(s.clone())),
+        }
     }
 }
 

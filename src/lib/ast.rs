@@ -16,7 +16,6 @@ pub enum Statement {
 /// The different types of Expressions in the language
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub enum Expression {
-    Array(Vec<Expression>),
     Ident(String),
     Index(Box<Expression>, Box<Expression>),
     Infix(Infix, Box<Expression>, Box<Expression>),
@@ -40,6 +39,7 @@ pub enum Expression {
 /// The literal values the language represents
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub enum Literal {
+    Array(Vec<Expression>),
     Boolean(bool),
     Int(isize),
     String(String),
@@ -99,6 +99,7 @@ impl Display for Statement {
 impl Display for Literal {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
+            Self::Array(v) => write!(f, "[{}]", print_arr(v, ", ")),
             Self::Boolean(b) => write!(f, "{b}"),
             Self::Int(i) => write!(f, "{i}"),
             Self::String(s) => write!(f, "\"{s}\""),
@@ -109,7 +110,6 @@ impl Display for Literal {
 impl Display for Expression {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Self::Array(v) => write!(f, "[{}]", print_arr(v, ", ")),
             Self::Call { args, ident } => write!(f, "{ident}({})", print_arr(args, ", ")),
             Self::Function { body, params } => write!(f, "fn({}) {body}", params.join(", ")),
             Self::Ident(s) => write!(f, "{s}"),
