@@ -110,10 +110,10 @@ impl Evaluator {
         }
     }
 
-    fn eval_let(&mut self, ident: &str, expr: &Expression) -> Result<Object, EvalErr> {
+    fn eval_let(&mut self, ident: &Rc<str>, expr: &Expression) -> Result<Object, EvalErr> {
         let e = self.eval_expression(expr)?;
 
-        self.env.borrow_mut().set(String::from(ident), e);
+        self.env.borrow_mut().set(Rc::clone(&ident), Rc::from(e));
 
         Ok(Object::Null)
     }
@@ -135,7 +135,7 @@ impl Evaluator {
 
                 for a in args {
                     match self.eval_expression(a) {
-                        Ok(e) => e_args.push(e),
+                        Ok(e) => e_args.push(Rc::from(e)),
                         Err(err) => return Err(err),
                     }
                 }
@@ -144,7 +144,9 @@ impl Evaluator {
                 let fn_env = Rc::new(RefCell::new(Environment::new(Some(Rc::clone(&env)))));
 
                 for (i, p) in params.iter().enumerate() {
-                    fn_env.borrow_mut().set(p.clone(), e_args[i].clone());
+                    if let Some(v) = e_args.get(i) {
+                        fn_env.borrow_mut().set(Rc::clone(p), Rc::clone(v));
+                    }
                 }
 
                 self.env = Rc::new(RefCell::new(Environment::new(Some(fn_env))));
@@ -179,15 +181,15 @@ impl Evaluator {
         }
     }
 
-    fn eval_function(&mut self, body: &BlockStatement, params: &[String]) -> Object {
+    fn eval_function(&mut self, body: &BlockStatement, params: &[Rc<str>]) -> Object {
         Object::Function(params.into(), body.clone(), Rc::clone(&self.env))
     }
 
-    fn eval_ident(&mut self, s: &str) -> Result<Object, EvalErr> {
-        self.env
-            .borrow_mut()
-            .get(s)
-            .map_or_else(|| Err(EvalErr::UnboundIdent(String::from(s))), Ok)
+    fn eval_ident(&mut self, s: &Rc<str>) -> Result<Object, EvalErr> {
+        self.env.borrow_mut().get(s).map_or_else(
+            || Err(EvalErr::UnboundIdent(String::from(&*s.to_string()))),
+            |v| Ok(Rc::unwrap_or_clone(v)),
+        )
     }
 
     fn eval_if(
@@ -342,7 +344,7 @@ fn infix_plus(le: &Object, re: &Object) -> Result<Object, EvalErr> {
     match le {
         Object::String(les) => {
             if let Object::String(res) = re {
-                Ok(Object::String(String::from(les) + res))
+                Ok(Object::String(Rc::from(les.to_string() + res)))
             } else {
                 Err(EvalErr::UnexpectedExpression(String::from(
                     "Can only add string to string",
@@ -453,7 +455,7 @@ mod tests {
             Object::Boolean(false),
             Object::Boolean(true),
             Object::Boolean(false),
-            Object::String(String::from("Hello World!")),
+            Object::String(Rc::from("Hello World!")),
             Object::Int(1),
         ];
 
@@ -609,19 +611,19 @@ mod tests {
                 Rc::clone(&e.env),
             ),
             Object::Function(
-                vec![String::from("x")],
+                vec![Rc::from("x")],
                 BlockStatement {
-                    statements: vec![Statement::Expression(Expression::Ident(String::from("x")))],
+                    statements: vec![Statement::Expression(Expression::Ident(Rc::from("x")))],
                 },
                 Rc::clone(&e.env),
             ),
             Object::Function(
-                vec![String::from("x"), String::from("y")],
+                vec![Rc::from("x"), Rc::from("y")],
                 BlockStatement {
                     statements: vec![Statement::Expression(Expression::Infix(
                         Infix::Plus,
-                        Box::new(Expression::Ident(String::from("x"))),
-                        Box::new(Expression::Ident(String::from("y"))),
+                        Box::new(Expression::Ident(Rc::from("x"))),
+                        Box::new(Expression::Ident(Rc::from("y"))),
                     ))],
                 },
                 Rc::clone(&e.env),
@@ -703,12 +705,12 @@ mod tests {
             Object::Int(8),
             Object::Int(2),
             Object::Int(1),
-            Object::String(String::from("H")),
+            Object::String(Rc::from("H")),
             Object::Int(2),
-            Object::String(String::from("i")),
-            Object::String(String::from("i")),
+            Object::String(Rc::from("i")),
+            Object::String(Rc::from("i")),
             Object::List(vec![Object::Int(2)]),
-            Object::String(String::from("Hi")),
+            Object::String(Rc::from("Hi")),
             Object::List(vec![Object::Int(1), Object::Int(2), Object::Int(3)]),
         ];
 
@@ -789,7 +791,7 @@ mod tests {
         let prog = p.parse_program();
         let env = Rc::new(RefCell::new(Environment::new(None)));
         env.borrow_mut()
-            .set(String::from("a"), Object::List(vec![]));
+            .set(Rc::from("a"), Rc::from(Object::List(vec![])));
         let mut e = Evaluator::new(env);
 
         assert_eq!(p.get_errors().len(), 0, "More than 0 errors");
@@ -923,7 +925,7 @@ mod tests {
         let corr = [
             Object::Null,
             Object::Null,
-            Object::String(String::from("WizzBuzzWizzBuzz")),
+            Object::String(Rc::from("WizzBuzzWizzBuzz")),
         ];
 
         for (i, v) in corr.iter().enumerate() {
@@ -957,7 +959,7 @@ mod tests {
         let corr = [
             Object::Map(map),
             Object::Int(1),
-            Object::String(String::from("two")),
+            Object::String(Rc::from("two")),
         ];
 
         for (i, v) in corr.iter().enumerate() {

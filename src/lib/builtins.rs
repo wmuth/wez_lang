@@ -1,18 +1,21 @@
-use std::{collections::HashMap, fmt::Display, num::TryFromIntError};
+use std::{collections::HashMap, fmt::Display, num::TryFromIntError, rc::Rc};
 
 use crate::object::Object;
 
 /// Gets a map of all the builtin functions where key is the name of the function and object is the
 /// [`Object::Builtin`] variant for this builtin function
-pub fn get_builtin_fns() -> HashMap<String, Object> {
+pub fn get_builtin_fns() -> HashMap<Rc<str>, Rc<Object>> {
     let mut map = HashMap::new();
-    map.insert(String::from("first"), Object::Builtin(first, Some(1)));
-    map.insert(String::from("insert"), Object::Builtin(insert, Some(3)));
-    map.insert(String::from("last"), Object::Builtin(last, Some(1)));
-    map.insert(String::from("len"), Object::Builtin(len, Some(1)));
-    map.insert(String::from("print"), Object::Builtin(print, None));
-    map.insert(String::from("push"), Object::Builtin(push, Some(2)));
-    map.insert(String::from("rest"), Object::Builtin(rest, Some(1)));
+    map.insert(Rc::from("first"), Rc::from(Object::Builtin(first, Some(1))));
+    map.insert(
+        Rc::from("insert"),
+        Rc::from(Object::Builtin(insert, Some(3))),
+    );
+    map.insert(Rc::from("last"), Rc::from(Object::Builtin(last, Some(1))));
+    map.insert(Rc::from("len"), Rc::from(Object::Builtin(len, Some(1))));
+    map.insert(Rc::from("print"), Rc::from(Object::Builtin(print, None)));
+    map.insert(Rc::from("push"), Rc::from(Object::Builtin(push, Some(2))));
+    map.insert(Rc::from("rest"), Rc::from(Object::Builtin(rest, Some(1))));
     map
 }
 
@@ -55,10 +58,10 @@ fn len(v: &[Object]) -> Result<Object, BuiltinError> {
 fn first(v: &[Object]) -> Result<Object, BuiltinError> {
     match v.first() {
         Some(Object::List(a)) => Ok(a.first().unwrap_or(&Object::Null).clone()),
-        Some(Object::String(s)) => s
-            .chars()
-            .next()
-            .map_or_else(|| Ok(Object::Null), |c| Ok(Object::String(String::from(c)))),
+        Some(Object::String(s)) => s.chars().next().map_or_else(
+            || Ok(Object::Null),
+            |c| Ok(Object::String(Rc::from(c.to_string()))),
+        ),
         _ => Err(BuiltinError::WrongType(String::from("List or String"))),
     }
 }
@@ -67,10 +70,10 @@ fn first(v: &[Object]) -> Result<Object, BuiltinError> {
 fn last(v: &[Object]) -> Result<Object, BuiltinError> {
     match v.first() {
         Some(Object::List(a)) => Ok(a.last().unwrap_or(&Object::Null).clone()),
-        Some(Object::String(s)) => s
-            .chars()
-            .last()
-            .map_or_else(|| Ok(Object::Null), |c| Ok(Object::String(String::from(c)))),
+        Some(Object::String(s)) => s.chars().last().map_or_else(
+            || Ok(Object::Null),
+            |c| Ok(Object::String(Rc::from(c.to_string()))),
+        ),
         _ => Err(BuiltinError::WrongType(String::from("List or String"))),
     }
 }
@@ -79,7 +82,7 @@ fn last(v: &[Object]) -> Result<Object, BuiltinError> {
 fn rest(v: &[Object]) -> Result<Object, BuiltinError> {
     match v.first() {
         Some(Object::List(a)) => Ok(Object::List(a.iter().skip(1).cloned().collect())),
-        Some(Object::String(s)) => Ok(Object::String(s.chars().skip(1).collect())),
+        Some(Object::String(s)) => Ok(Object::String(Rc::from(&s[1..]))),
         _ => Err(BuiltinError::WrongType(String::from("List or String"))),
     }
 }
@@ -96,9 +99,9 @@ fn push(v: &[Object]) -> Result<Object, BuiltinError> {
                 })),
                 Some(Object::String(s)) => {
                     if let Object::String(ss) = o {
-                        Ok(Object::String(s.clone() + ss))
+                        Ok(Object::String(Rc::from(s.to_string() + ss)))
                     } else {
-                        Ok(Object::String(s.clone()))
+                        Ok(Object::String(Rc::clone(s)))
                     }
                 }
                 _ => Err(BuiltinError::WrongType(String::from("List or String"))),

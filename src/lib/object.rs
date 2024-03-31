@@ -9,13 +9,13 @@ pub enum Object {
     /// Function and Option of wether there is a correct nr of args
     Builtin(fn(&[Object]) -> Result<Object, BuiltinError>, Option<u8>),
     /// Vec of param identifiers, a block to execute and an environment for nesting
-    Function(Vec<String>, BlockStatement, Rc<RefCell<Environment>>),
+    Function(Vec<Rc<str>>, BlockStatement, Rc<RefCell<Environment>>),
     Int(isize),
     List(Vec<Object>),
     Map(HashMap<Object, Object>),
     Null,
     Return(Box<Object>),
-    String(String),
+    String(Rc<str>),
 }
 
 impl Display for Object {

@@ -1,4 +1,7 @@
-use std::fmt::{Display, Write};
+use std::{
+    fmt::{Display, Write},
+    rc::Rc,
+};
 
 /// The program, consting of the [`Statement`] our parser creates
 pub struct Program {
@@ -9,14 +12,14 @@ pub struct Program {
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub enum Statement {
     Expression(Expression),
-    Let { ident: String, expr: Expression },
+    Let { ident: Rc<str>, expr: Expression },
     Return(Expression),
 }
 
 /// The different types of Expressions in the language
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub enum Expression {
-    Ident(String),
+    Ident(Rc<str>),
     /// Left is to index, right is which index
     Index(Box<Expression>, Box<Expression>),
     /// Infix of left and right
@@ -34,7 +37,7 @@ pub enum Expression {
     },
     Function {
         body: BlockStatement,
-        params: Vec<String>,
+        params: Vec<Rc<str>>,
     },
 }
 
@@ -46,7 +49,7 @@ pub enum Literal {
     Int(isize),
     /// Vec<(k,v)> to then create map from in [`crate::evaluator::Evaluator`]
     Map(Vec<(Expression, Expression)>),
-    String(String),
+    String(Rc<str>),
 }
 
 /// Precedence to bse used by our Operator-Precedence parser

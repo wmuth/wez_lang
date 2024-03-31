@@ -1,4 +1,4 @@
-use std::fmt::Display;
+use std::{fmt::Display, rc::Rc};
 
 use crate::{
     ast::{BlockStatement, Expression, Infix, Literal, Precedence, Prefix, Program, Statement},
@@ -351,13 +351,13 @@ impl Parser<'_> {
         Ok(Expression::Function { body, params })
     }
 
-    fn parse_params(&mut self) -> Result<Vec<String>, ParseError> {
+    fn parse_params(&mut self) -> Result<Vec<Rc<str>>, ParseError> {
         self.next();
         let mut params = vec![];
 
         while self.cur_tok != Token::Rparen {
             match &self.cur_tok {
-                Token::Ident(i) => params.push(i.clone()),
+                Token::Ident(i) => params.push(Rc::clone(i)),
                 Token::Comma => (),
                 _ => {
                     return Err(ParseError::UnexpectedToken(format!(
@@ -522,6 +522,8 @@ const fn token_to_precedence(t: &Token) -> Precedence {
 
 #[cfg(test)]
 mod tests {
+    use std::rc::Rc;
+
     use crate::{
         ast::{BlockStatement, Expression, Infix, Literal, Prefix, Statement},
         lexer::Lexer,
@@ -549,35 +551,32 @@ mod tests {
 
         let corr = [
             Statement::Let {
-                ident: String::from("x"),
+                ident: Rc::from("x"),
                 expr: Expression::Literal(Literal::Int(5)),
             },
             Statement::Let {
-                ident: String::from("y"),
+                ident: Rc::from("y"),
                 expr: Expression::Literal(Literal::Int(10)),
             },
             Statement::Let {
-                ident: String::from("z"),
+                ident: Rc::from("z"),
                 expr: Expression::Literal(Literal::Int(1234)),
             },
             Statement::Let {
-                ident: String::from("x"),
+                ident: Rc::from("x"),
                 expr: Expression::Infix(
                     Infix::Plus,
-                    Box::new(Expression::Ident(String::from("y"))),
-                    Box::new(Expression::Ident(String::from("z"))),
+                    Box::new(Expression::Ident(Rc::from("y"))),
+                    Box::new(Expression::Ident(Rc::from("z"))),
                 ),
             },
             Statement::Let {
-                ident: String::from("y"),
-                expr: Expression::Prefix(
-                    Prefix::Not,
-                    Box::new(Expression::Ident(String::from("z"))),
-                ),
+                ident: Rc::from("y"),
+                expr: Expression::Prefix(Prefix::Not, Box::new(Expression::Ident(Rc::from("z")))),
             },
             Statement::Let {
-                ident: String::from("s"),
-                expr: Expression::Literal(Literal::String(String::from("string"))),
+                ident: Rc::from("s"),
+                expr: Expression::Literal(Literal::String(Rc::from("string"))),
             },
         ];
 
@@ -588,7 +587,7 @@ mod tests {
 
     #[test]
     fn test_return_statement() {
-        let s = String::from("return 5; return a - b;");
+        let s = Rc::from("return 5; return a - b;");
 
         let l = Lexer::new(&s);
         let mut p = Parser::new(l);
@@ -601,8 +600,8 @@ mod tests {
             Statement::Return(Expression::Literal(Literal::Int(5))),
             Statement::Return(Expression::Infix(
                 Infix::Minus,
-                Box::new(Expression::Ident(String::from("a"))),
-                Box::new(Expression::Ident(String::from("b"))),
+                Box::new(Expression::Ident(Rc::from("a"))),
+                Box::new(Expression::Ident(Rc::from("b"))),
             )),
         ];
 
@@ -613,7 +612,7 @@ mod tests {
 
     #[test]
     fn test_ident_expr() {
-        let s = String::from("test; foobar;");
+        let s = Rc::from("test; foobar;");
 
         let l = Lexer::new(&s);
         let mut p = Parser::new(l);
@@ -623,8 +622,8 @@ mod tests {
         assert_eq!(prog.statements.len(), 2, "Incorrect number of statements");
 
         let corr = [
-            Statement::Expression(Expression::Ident(String::from("test"))),
-            Statement::Expression(Expression::Ident(String::from("foobar"))),
+            Statement::Expression(Expression::Ident(Rc::from("test"))),
+            Statement::Expression(Expression::Ident(Rc::from("foobar"))),
         ];
 
         for (i, v) in corr.iter().enumerate() {
@@ -634,7 +633,7 @@ mod tests {
 
     #[test]
     fn test_literal_expr() {
-        let s = String::from("1337; 120; true; false; \"foobar\";");
+        let s = Rc::from("1337; 120; true; false; \"foobar\";");
 
         let l = Lexer::new(&s);
         let mut p = Parser::new(l);
@@ -648,7 +647,7 @@ mod tests {
             Statement::Expression(Expression::Literal(Literal::Int(120))),
             Statement::Expression(Expression::Literal(Literal::Boolean(true))),
             Statement::Expression(Expression::Literal(Literal::Boolean(false))),
-            Statement::Expression(Expression::Literal(Literal::String(String::from("foobar")))),
+            Statement::Expression(Expression::Literal(Literal::String(Rc::from("foobar")))),
         ];
 
         for (i, v) in corr.iter().enumerate() {
@@ -658,7 +657,7 @@ mod tests {
 
     #[test]
     fn test_parse_prefix_expr() {
-        let s = String::from("-5; !!foo;");
+        let s = Rc::from("-5; !!foo;");
 
         let l = Lexer::new(&s);
         let mut p = Parser::new(l);
@@ -676,7 +675,7 @@ mod tests {
                 Prefix::Not,
                 Box::new(Expression::Prefix(
                     Prefix::Not,
-                    Box::new(Expression::Ident(String::from("foo"))),
+                    Box::new(Expression::Ident(Rc::from("foo"))),
                 )),
             )),
         ];
@@ -688,7 +687,7 @@ mod tests {
 
     #[test]
     fn test_parse_infix_expr() {
-        let s = String::from("5+5;5-5;5*5;5/5;5>5;5<5;5==5;5!=5;");
+        let s = Rc::from("5+5;5-5;5*5;5/5;5>5;5<5;5==5;5!=5;");
 
         let l = Lexer::new(&s);
         let mut p = Parser::new(l);
@@ -747,7 +746,7 @@ mod tests {
 
     #[test]
     fn test_group_expr() {
-        let s = String::from("1 + 2 / 3; (1 + 2) / 3;");
+        let s = Rc::from("1 + 2 / 3; (1 + 2) / 3;");
 
         let l = Lexer::new(&s);
         let mut p = Parser::new(l);
@@ -784,7 +783,7 @@ mod tests {
 
     #[test]
     fn test_if_expr() {
-        let s = String::from("if (x < y) { x } if (x) { x } else { y }");
+        let s = Rc::from("if (x < y) { x } if (x) { x } else { y }");
 
         let l = Lexer::new(&s);
         let mut p = Parser::new(l);
@@ -797,21 +796,21 @@ mod tests {
             Statement::Expression(Expression::If {
                 cond: Box::new(Expression::Infix(
                     Infix::Less,
-                    Box::new(Expression::Ident(String::from("x"))),
-                    Box::new(Expression::Ident(String::from("y"))),
+                    Box::new(Expression::Ident(Rc::from("x"))),
+                    Box::new(Expression::Ident(Rc::from("y"))),
                 )),
                 then: BlockStatement {
-                    statements: vec![Statement::Expression(Expression::Ident(String::from("x")))],
+                    statements: vec![Statement::Expression(Expression::Ident(Rc::from("x")))],
                 },
                 alt: BlockStatement { statements: vec![] },
             }),
             Statement::Expression(Expression::If {
-                cond: Box::new(Expression::Ident(String::from("x"))),
+                cond: Box::new(Expression::Ident(Rc::from("x"))),
                 then: BlockStatement {
-                    statements: vec![Statement::Expression(Expression::Ident(String::from("x")))],
+                    statements: vec![Statement::Expression(Expression::Ident(Rc::from("x")))],
                 },
                 alt: BlockStatement {
-                    statements: vec![Statement::Expression(Expression::Ident(String::from("y")))],
+                    statements: vec![Statement::Expression(Expression::Ident(Rc::from("y")))],
                 },
             }),
         ];
@@ -823,7 +822,7 @@ mod tests {
 
     #[test]
     fn test_fn_lit() {
-        let s = String::from("fn(){1};fn(x){x};fn(x, y){ x + y };");
+        let s = Rc::from("fn(){1};fn(x){x};fn(x, y){ x + y };");
 
         let l = Lexer::new(&s);
         let mut p = Parser::new(l);
@@ -841,19 +840,19 @@ mod tests {
             }),
             Statement::Expression(Expression::Function {
                 body: BlockStatement {
-                    statements: vec![Statement::Expression(Expression::Ident(String::from("x")))],
+                    statements: vec![Statement::Expression(Expression::Ident(Rc::from("x")))],
                 },
-                params: vec![String::from("x")],
+                params: vec![Rc::from("x")],
             }),
             Statement::Expression(Expression::Function {
                 body: BlockStatement {
                     statements: vec![Statement::Expression(Expression::Infix(
                         Infix::Plus,
-                        Box::new(Expression::Ident(String::from("x"))),
-                        Box::new(Expression::Ident(String::from("y"))),
+                        Box::new(Expression::Ident(Rc::from("x"))),
+                        Box::new(Expression::Ident(Rc::from("y"))),
                     ))],
                 },
-                params: vec![String::from("x"), String::from("y")],
+                params: vec![Rc::from("x"), Rc::from("y")],
             }),
         ];
 
@@ -864,7 +863,7 @@ mod tests {
 
     #[test]
     fn test_call_expr() {
-        let s = String::from("next(); remove(x); add(1, 2*3, 4+5);");
+        let s = Rc::from("next(); remove(x); add(1, 2*3, 4+5);");
 
         let l = Lexer::new(&s);
         let mut p = Parser::new(l);
@@ -876,11 +875,11 @@ mod tests {
         let corr = [
             Statement::Expression(Expression::Call {
                 args: vec![],
-                ident: Box::new(Expression::Ident(String::from("next"))),
+                ident: Box::new(Expression::Ident(Rc::from("next"))),
             }),
             Statement::Expression(Expression::Call {
-                args: vec![Expression::Ident(String::from("x"))],
-                ident: Box::new(Expression::Ident(String::from("remove"))),
+                args: vec![Expression::Ident(Rc::from("x"))],
+                ident: Box::new(Expression::Ident(Rc::from("remove"))),
             }),
             Statement::Expression(Expression::Call {
                 args: vec![
@@ -896,7 +895,7 @@ mod tests {
                         Box::new(Expression::Literal(Literal::Int(5))),
                     ),
                 ],
-                ident: Box::new(Expression::Ident(String::from("add"))),
+                ident: Box::new(Expression::Ident(Rc::from("add"))),
             }),
         ];
 
@@ -907,7 +906,7 @@ mod tests {
 
     #[test]
     fn test_arr_expr() {
-        let s = String::from("let a = [1, 2]; a[0];");
+        let s = Rc::from("let a = [1, 2]; a[0];");
 
         let l = Lexer::new(&s);
         let mut p = Parser::new(l);
@@ -918,14 +917,14 @@ mod tests {
 
         let corr = [
             Statement::Let {
-                ident: String::from("a"),
+                ident: Rc::from("a"),
                 expr: Expression::Literal(Literal::List(vec![
                     Expression::Literal(Literal::Int(1)),
                     Expression::Literal(Literal::Int(2)),
                 ])),
             },
             Statement::Expression(Expression::Index(
-                Box::new(Expression::Ident(String::from("a"))),
+                Box::new(Expression::Ident(Rc::from("a"))),
                 Box::new(Expression::Literal(Literal::Int(0))),
             )),
         ];
@@ -937,7 +936,7 @@ mod tests {
 
     #[test]
     fn test_map_expr() {
-        let s = String::from("{}; {1: 1}; let a = {1: 1, 2: 2}; a[0];");
+        let s = Rc::from("{}; {1: 1}; let a = {1: 1, 2: 2}; a[0];");
 
         let l = Lexer::new(&s);
         let mut p = Parser::new(l);
@@ -953,7 +952,7 @@ mod tests {
                 Expression::Literal(Literal::Int(1)),
             )]))),
             Statement::Let {
-                ident: String::from("a"),
+                ident: Rc::from("a"),
                 expr: Expression::Literal(Literal::Map(vec![
                     (
                         Expression::Literal(Literal::Int(1)),
@@ -966,7 +965,7 @@ mod tests {
                 ])),
             },
             Statement::Expression(Expression::Index(
-                Box::new(Expression::Ident(String::from("a"))),
+                Box::new(Expression::Ident(Rc::from("a"))),
                 Box::new(Expression::Literal(Literal::Int(0))),
             )),
         ];

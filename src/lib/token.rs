@@ -1,4 +1,4 @@
-use std::fmt::Display;
+use std::{fmt::Display, rc::Rc};
 
 /// Tokens which are created by the [`crate::lexer::Lexer`] to be read by the
 /// [`crate::parser::Parser`]
@@ -13,7 +13,7 @@ pub enum Token {
     Eq,
     False,
     Function,
-    Ident(String),
+    Ident(Rc<str>),
     If,
     Illegal,
     Int(isize),
@@ -34,7 +34,7 @@ pub enum Token {
     Semicolon,
     Slash,
     Star,
-    String(String),
+    String(Rc<str>),
     True,
 }
 

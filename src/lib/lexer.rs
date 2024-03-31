@@ -2,6 +2,7 @@ use crate::token::Token;
 use std::fmt::Display;
 use std::iter::Peekable;
 use std::num::ParseIntError;
+use std::rc::Rc;
 use std::str::Chars;
 
 /// The errors the [`Lexer`] can produce
@@ -62,7 +63,7 @@ impl Lexer<'_> {
                     "let" => Token::Let,
                     "return" => Token::Return,
                     "true" => Token::True,
-                    _ => Token::Ident(ident),
+                    _ => Token::Ident(Rc::from(ident)),
                 }
             }
             '0'..='9' => match self.read_int() {
@@ -89,9 +90,9 @@ impl Lexer<'_> {
             '"' => {
                 if self.input.peek().unwrap_or(&'\0') == &'"' {
                     self.read_char();
-                    Token::String(String::new())
+                    Token::String(Rc::from(""))
                 } else {
-                    Token::String(self.read_str())
+                    Token::String(Rc::from(self.read_string().as_str()))
                 }
             }
             ':' => Token::Colon,
@@ -151,7 +152,7 @@ impl Lexer<'_> {
         build.parse()
     }
 
-    fn read_str(&mut self) -> String {
+    fn read_string(&mut self) -> String {
         self.read_char();
 
         let mut build = String::with_capacity(64);
@@ -180,6 +181,8 @@ impl Lexer<'_> {
 
 #[cfg(test)]
 mod tests {
+    use std::rc::Rc;
+
     use super::Lexer;
     use crate::token::Token;
 
@@ -223,39 +226,39 @@ mod tests {
 
         let correct = vec![
             Token::Let,
-            Token::Ident(String::from("five")),
+            Token::Ident(Rc::from("five")),
             Token::Assign,
             Token::Int(5),
             Token::Semicolon,
             Token::Let,
-            Token::Ident(String::from("ten")),
+            Token::Ident(Rc::from("ten")),
             Token::Assign,
             Token::Int(10),
             Token::Semicolon,
             Token::Let,
-            Token::Ident(String::from("add")),
+            Token::Ident(Rc::from("add")),
             Token::Assign,
             Token::Function,
             Token::Lparen,
-            Token::Ident(String::from("x")),
+            Token::Ident(Rc::from("x")),
             Token::Comma,
-            Token::Ident(String::from("y")),
+            Token::Ident(Rc::from("y")),
             Token::Rparen,
             Token::Lbrace,
-            Token::Ident(String::from("x")),
+            Token::Ident(Rc::from("x")),
             Token::Plus,
-            Token::Ident(String::from("y")),
+            Token::Ident(Rc::from("y")),
             Token::Semicolon,
             Token::Rbrace,
             Token::Semicolon,
             Token::Let,
-            Token::Ident(String::from("result")),
+            Token::Ident(Rc::from("result")),
             Token::Assign,
-            Token::Ident(String::from("add")),
+            Token::Ident(Rc::from("add")),
             Token::Lparen,
-            Token::Ident(String::from("five")),
+            Token::Ident(Rc::from("five")),
             Token::Comma,
-            Token::Ident(String::from("ten")),
+            Token::Ident(Rc::from("ten")),
             Token::Rparen,
             Token::Semicolon,
             Token::Bang,
@@ -295,28 +298,28 @@ mod tests {
             Token::NotEq,
             Token::Int(9),
             Token::Semicolon,
-            Token::String(String::from("Hello Str")),
+            Token::String(Rc::from("Hello Str")),
             Token::Semicolon,
-            Token::String(String::new()),
+            Token::String(Rc::from("")),
             Token::Semicolon,
-            Token::String(String::from(" ")),
+            Token::String(Rc::from(" ")),
             Token::Semicolon,
             Token::Let,
-            Token::Ident(String::from("x")),
+            Token::Ident(Rc::from("x")),
             Token::Assign,
             Token::Lbracket,
             Token::Int(1),
             Token::Comma,
-            Token::String(String::from("two")),
+            Token::String(Rc::from("two")),
             Token::Rbracket,
             Token::Semicolon,
-            Token::Ident(String::from("x")),
+            Token::Ident(Rc::from("x")),
             Token::Lbracket,
             Token::Int(0),
             Token::Rbracket,
             Token::Semicolon,
             Token::Let,
-            Token::Ident(String::from("x")),
+            Token::Ident(Rc::from("x")),
             Token::Assign,
             Token::Lbrace,
             Token::Int(1),
@@ -328,7 +331,7 @@ mod tests {
             Token::Int(2),
             Token::Rbrace,
             Token::Semicolon,
-            Token::Ident(String::from("x")),
+            Token::Ident(Rc::from("x")),
             Token::Lbracket,
             Token::Int(1),
             Token::Rbracket,
