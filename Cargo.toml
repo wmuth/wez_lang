@@ -16,6 +16,10 @@ path = "src/repl/main.rs"
 name = "compiler"
 path = "src/compiler/main.rs"
 
+[[bin]]
+name = "bench"
+path = "src/bench/main.rs"
+
 [lib]
 name = "wez_lang_lib"
 path = "src/lib/lib.rs"
