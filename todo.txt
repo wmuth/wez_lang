@@ -1,2 +1,1 @@
-Create the wezlang unique symbols, whatever they are
 Write the readme about what the language supports as well as all the syntax

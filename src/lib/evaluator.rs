@@ -113,7 +113,7 @@ impl Evaluator {
     fn eval_let(&mut self, ident: &Rc<str>, expr: &Expression) -> Result<Object, EvalErr> {
         let e = self.eval_expression(expr)?;
 
-        self.env.borrow_mut().set(Rc::clone(&ident), Rc::from(e));
+        self.env.borrow_mut().set(Rc::clone(ident), Rc::from(e));
 
         Ok(Object::Null)
     }

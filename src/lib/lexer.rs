@@ -56,13 +56,14 @@ impl Lexer<'_> {
             'A'..='Z' | 'a'..='z' | '_' => {
                 let ident = self.read_ident();
                 match ident.as_str() {
-                    "else" => Token::Else,
-                    "false" => Token::False,
-                    "fn" => Token::Function,
-                    "if" => Token::If,
-                    "let" => Token::Let,
-                    "return" => Token::Return,
-                    "true" => Token::True,
+                    "beariable" | "let" => Token::Let,
+                    "bear" | "true" => Token::True,
+                    "else" | "nanook" => Token::Else,
+                    "false" | "penguin" => Token::False,
+                    "fn" | "wez" => Token::Function,
+                    "ice" | "if" => Token::If,
+                    "northbound" | "return" => Token::Return,
+                    "stonk" => Token::Plus,
                     _ => Token::Ident(Rc::from(ident)),
                 }
             }
@@ -112,7 +113,7 @@ impl Lexer<'_> {
             '/' => Token::Slash,
             '*' => Token::Star,
             '\0' => Token::Eof,
-            _ => Token::Illegal,
+            _ => self.try_emoji(),
         };
 
         self.read_char();
@@ -177,6 +178,21 @@ impl Lexer<'_> {
             self.read_char();
         }
     }
+
+    fn try_emoji(&mut self) -> Token {
+        match self.ch {
+            '🐻' => match self.input.peek().unwrap_or(&'\0') {
+                '‍' => {
+                    self.read_char();
+                    self.read_char();
+                    self.read_char();
+                    Token::Let
+                }
+                _ => Token::Let,
+            },
+            _ => Token::Illegal,
+        }
+    }
 }
 
 #[cfg(test)]
@@ -224,7 +240,7 @@ mod tests {
 
         let mut lex = Lexer::new(s);
 
-        let correct = vec![
+        let correct = [
             Token::Let,
             Token::Ident(Rc::from("five")),
             Token::Assign,
@@ -340,6 +356,64 @@ mod tests {
             Token::Percent,
             Token::Int(2),
             Token::Semicolon,
+            Token::Eof,
+        ];
+
+        for (i, token) in correct.into_iter().enumerate() {
+            let next = lex.next_tok();
+            assert_eq!(next, token, "Error with token {i}");
+        }
+    }
+
+    #[test]
+    fn tokens_working_wez() {
+        let s = "beariable x = ice(bear == penguin) { wez(x) { northbound x stonk 1; } } nanook { wez(x) { northbound x stonk 2; } };
+                 🐻 🐻‍❄️";
+
+        let mut lex = Lexer::new(s);
+
+        let ident = Rc::from("x");
+
+        let correct = [
+            Token::Let,
+            Token::Ident(Rc::clone(&ident)),
+            Token::Assign,
+            Token::If,
+            Token::Lparen,
+            Token::True,
+            Token::Eq,
+            Token::False,
+            Token::Rparen,
+            Token::Lbrace,
+            Token::Function,
+            Token::Lparen,
+            Token::Ident(Rc::clone(&ident)),
+            Token::Rparen,
+            Token::Lbrace,
+            Token::Return,
+            Token::Ident(Rc::clone(&ident)),
+            Token::Plus,
+            Token::Int(1),
+            Token::Semicolon,
+            Token::Rbrace,
+            Token::Rbrace,
+            Token::Else,
+            Token::Lbrace,
+            Token::Function,
+            Token::Lparen,
+            Token::Ident(Rc::clone(&ident)),
+            Token::Rparen,
+            Token::Lbrace,
+            Token::Return,
+            Token::Ident(Rc::clone(&ident)),
+            Token::Plus,
+            Token::Int(2),
+            Token::Semicolon,
+            Token::Rbrace,
+            Token::Rbrace,
+            Token::Semicolon,
+            Token::Let,
+            Token::Let,
             Token::Eof,
         ];
 

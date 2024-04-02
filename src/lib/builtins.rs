@@ -5,17 +5,22 @@ use crate::object::Object;
 /// Gets a map of all the builtin functions where key is the name of the function and object is the
 /// [`Object::Builtin`] variant for this builtin function
 pub fn get_builtin_fns() -> HashMap<Rc<str>, Rc<Object>> {
+    let print = Rc::from(Object::Builtin(print, None));
+    let push = Rc::from(Object::Builtin(push, Some(2)));
+
     let mut map = HashMap::new();
     map.insert(Rc::from("first"), Rc::from(Object::Builtin(first, Some(1))));
     map.insert(
         Rc::from("insert"),
         Rc::from(Object::Builtin(insert, Some(3))),
     );
+    map.insert(Rc::from("invest"), Rc::clone(&push));
     map.insert(Rc::from("last"), Rc::from(Object::Builtin(last, Some(1))));
     map.insert(Rc::from("len"), Rc::from(Object::Builtin(len, Some(1))));
-    map.insert(Rc::from("print"), Rc::from(Object::Builtin(print, None)));
-    map.insert(Rc::from("push"), Rc::from(Object::Builtin(push, Some(2))));
+    map.insert(Rc::from("print"), Rc::clone(&print));
+    map.insert(Rc::from("push"), Rc::clone(&push));
     map.insert(Rc::from("rest"), Rc::from(Object::Builtin(rest, Some(1))));
+    map.insert(Rc::from("roar"), Rc::clone(&print));
     map
 }
 
