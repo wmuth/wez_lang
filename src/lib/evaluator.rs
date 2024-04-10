@@ -131,14 +131,12 @@ impl Evaluator {
                     return Err(EvalErr::IncorrectNrOfArgs(params.len()));
                 }
 
-                let mut e_args = Vec::with_capacity(args.len());
+                let e_args = args
+                    .iter()
+                    .map(|a| self.eval_expression(a))
+                    .collect::<Result<Vec<Object>, EvalErr>>()?;
 
-                for a in args {
-                    match self.eval_expression(a) {
-                        Ok(e) => e_args.push(Rc::from(e)),
-                        Err(err) => return Err(err),
-                    }
-                }
+                let e_args: Vec<Rc<Object>> = e_args.into_iter().map(Rc::new).collect();
 
                 let old_env = Rc::clone(&self.env);
                 let fn_env = Rc::new(RefCell::new(Environment::new(Some(Rc::clone(&env)))));
@@ -164,14 +162,10 @@ impl Evaluator {
                     }
                 }
 
-                let mut e_args = Vec::with_capacity(args.len());
-
-                for a in args {
-                    match self.eval_expression(a) {
-                        Ok(e) => e_args.push(e),
-                        Err(err) => return Err(err),
-                    }
-                }
+                let e_args = args
+                    .iter()
+                    .map(|a| self.eval_expression(a))
+                    .collect::<Result<Vec<Object>, EvalErr>>()?;
 
                 Ok(f(&e_args)?)
             }
