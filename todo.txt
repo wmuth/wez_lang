@@ -1,1 +1,0 @@
-Write the readme about what the language supports as well as all the syntax
