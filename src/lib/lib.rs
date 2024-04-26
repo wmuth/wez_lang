@@ -1,3 +1,11 @@
+#![warn(
+    clippy::all,
+    clippy::cargo,
+    clippy::nursery,
+    clippy::pedantic,
+    clippy::unwrap_used
+)]
+
 pub mod ast;
 pub mod builtins;
 pub mod environment;

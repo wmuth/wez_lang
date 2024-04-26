@@ -21,7 +21,7 @@ name = "bench"
 path = "src/bench/main.rs"
 
 [lib]
-name = "wez_lang_lib"
+name = "wez_lang"
 path = "src/lib/lib.rs"
 
 [dependencies]

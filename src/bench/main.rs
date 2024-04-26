@@ -1,6 +1,6 @@
 use std::{cell::RefCell, rc::Rc};
 
-use wez_lang_lib::{environment::Environment, evaluator::Evaluator, lexer::Lexer, parser::Parser};
+use wez_lang::{environment::Environment, evaluator::Evaluator, lexer::Lexer, parser::Parser};
 
 // #[global_allocator]
 // static GLOBAL: tikv_jemallocator::Jemalloc = tikv_jemallocator::Jemalloc;

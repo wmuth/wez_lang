@@ -4,7 +4,7 @@ use std::{
     rc::Rc,
 };
 
-use wez_lang_lib::{
+use wez_lang::{
     builtins::get_builtin_fns, environment::Environment, evaluator::Evaluator, lexer::Lexer,
     parser::Parser,
 };
