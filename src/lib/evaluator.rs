@@ -387,7 +387,8 @@ mod tests {
         for (i, v) in corr.iter().enumerate() {
             assert_eq!(
                 *v,
-                e.eval_statement(&prog.statements[i]).unwrap(),
+                e.eval_statement(&prog.statements[i])
+                    .expect("This must be an OK value"),
                 "Error in statement {}",
                 i + 1
             );
@@ -417,7 +418,8 @@ mod tests {
         for (i, v) in corr.iter().enumerate() {
             assert_eq!(
                 *v,
-                e.eval_statement(&prog.statements[i]).unwrap(),
+                e.eval_statement(&prog.statements[i])
+                    .expect("This must be an OK value"),
                 "Error in statement {}",
                 i + 1
             );
@@ -456,7 +458,8 @@ mod tests {
         for (i, v) in corr.iter().enumerate() {
             assert_eq!(
                 *v,
-                e.eval_statement(&prog.statements[i]).unwrap(),
+                e.eval_statement(&prog.statements[i])
+                    .expect("This must be an OK value"),
                 "Error in statement {}",
                 i + 1
             );
@@ -486,7 +489,8 @@ mod tests {
         for (i, v) in corr.iter().enumerate() {
             assert_eq!(
                 *v,
-                e.eval_statement(&prog.statements[i]).unwrap(),
+                e.eval_statement(&prog.statements[i])
+                    .expect("This must be an OK value"),
                 "Error in statement {}",
                 i + 1
             );
@@ -517,7 +521,8 @@ mod tests {
         for (i, v) in corr.iter().enumerate() {
             assert_eq!(
                 *v,
-                e.eval_statement(&prog.statements[i]).unwrap(),
+                e.eval_statement(&prog.statements[i])
+                    .expect("This must be an OK value"),
                 "Error in statement {}",
                 i + 1
             );
@@ -553,7 +558,8 @@ mod tests {
         for (i, v) in corr.iter().enumerate() {
             assert_eq!(
                 *v,
-                e.eval_statement(&prog.statements[i]).unwrap_err(),
+                e.eval_statement(&prog.statements[i])
+                    .expect_err("This should never be OK"),
                 "Error in statement {}",
                 i + 1
             );
@@ -577,7 +583,8 @@ mod tests {
         for (i, v) in corr.iter().enumerate() {
             assert_eq!(
                 *v,
-                e.eval_statement(&prog.statements[i]).unwrap(),
+                e.eval_statement(&prog.statements[i])
+                    .expect("This must be an OK value"),
                 "Error in statement {}",
                 i + 1
             );
@@ -627,7 +634,8 @@ mod tests {
         for (i, v) in corr.iter().enumerate() {
             assert_eq!(
                 *v,
-                e.eval_statement(&prog.statements[i]).unwrap(),
+                e.eval_statement(&prog.statements[i])
+                    .expect("This must be an OK value"),
                 "Error in statement {}",
                 i + 1
             );
@@ -657,7 +665,8 @@ mod tests {
         for (i, v) in corr.iter().enumerate() {
             assert_eq!(
                 *v,
-                e.eval_statement(&prog.statements[i]).unwrap(),
+                e.eval_statement(&prog.statements[i])
+                    .expect("This must be an OK value"),
                 "Error in statement {}",
                 i + 1
             );
@@ -711,7 +720,8 @@ mod tests {
         for (i, v) in corr.iter().enumerate() {
             assert_eq!(
                 *v,
-                e.eval_statement(&prog.statements[i]).unwrap(),
+                e.eval_statement(&prog.statements[i])
+                    .expect("This must be an OK value"),
                 "Error in statement {}",
                 i + 1
             );
@@ -744,7 +754,8 @@ mod tests {
         for (i, v) in corr.iter().enumerate() {
             assert_eq!(
                 *v,
-                e.eval_statement(&prog.statements[i]).unwrap_err(),
+                e.eval_statement(&prog.statements[i])
+                    .expect_err("This should never be OK"),
                 "Error in statement {}",
                 i + 1
             );
@@ -769,7 +780,8 @@ mod tests {
         for (i, v) in corr.iter().enumerate() {
             assert_eq!(
                 *v,
-                e.eval_statement(&prog.statements[i]).unwrap(),
+                e.eval_statement(&prog.statements[i])
+                    .expect("This must be an OK value"),
                 "Error in statement {}",
                 i + 1
             );
@@ -796,7 +808,8 @@ mod tests {
         for (i, v) in corr.iter().enumerate() {
             assert_eq!(
                 *v,
-                e.eval_statement(&prog.statements[i]).unwrap_err(),
+                e.eval_statement(&prog.statements[i])
+                    .expect_err("This should never be OK"),
                 "Error in statement {}",
                 i + 1
             );
@@ -865,7 +878,8 @@ mod tests {
         for (i, v) in corr.iter().enumerate() {
             assert_eq!(
                 *v,
-                e.eval_statement(&prog.statements[i]).unwrap(),
+                e.eval_statement(&prog.statements[i])
+                    .expect("This must be an OK value"),
                 "Error in statement {}",
                 i + 1
             );
@@ -925,7 +939,8 @@ mod tests {
         for (i, v) in corr.iter().enumerate() {
             assert_eq!(
                 *v,
-                e.eval_statement(&prog.statements[i]).unwrap(),
+                e.eval_statement(&prog.statements[i])
+                    .expect("This must be an OK value"),
                 "Error in statement {}",
                 i + 1
             );
@@ -959,7 +974,8 @@ mod tests {
         for (i, v) in corr.iter().enumerate() {
             assert_eq!(
                 *v,
-                e.eval_statement(&prog.statements[i]).unwrap(),
+                e.eval_statement(&prog.statements[i])
+                    .expect("This must be an OK value"),
                 "Error in statement {}",
                 i + 1
             );
@@ -984,7 +1000,8 @@ mod tests {
         for (i, v) in corr.iter().enumerate() {
             assert_eq!(
                 *v,
-                e.eval_statement(&prog.statements[i]).unwrap_err(),
+                e.eval_statement(&prog.statements[i])
+                    .expect_err("This should never be OK"),
                 "Error in statement {}",
                 i + 1
             );
