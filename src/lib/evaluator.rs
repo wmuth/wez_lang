@@ -420,17 +420,49 @@ mod tests {
     use super::*;
     use crate::{builtins::get_builtin_fns, lexer::Lexer, object::Object, parser::Parser};
 
+    fn helper_obj(corr: &[Object], e: &mut Evaluator, prog: &Program) {
+        for (i, v) in corr.iter().enumerate() {
+            assert_eq!(
+                *v,
+                e.eval_statement(&prog.statements[i]).unwrap(),
+                "Error in statement {}",
+                i + 1
+            );
+        }
+    }
+
+    fn helper_err(corr: &[EvalErr], e: &mut Evaluator, prog: &Program) {
+        for (i, v) in corr.iter().enumerate() {
+            assert_eq!(
+                *v,
+                e.eval_statement(&prog.statements[i])
+                    .expect_err("This should never be OK"),
+                "Incorrect statement {}",
+                i + 1
+            );
+        }
+    }
+
+    fn helper_setup(s: &str, nr_err: usize, nr_stmt: usize) -> (Program, Evaluator) {
+        let l = Lexer::new(s);
+        let mut p = Parser::new(l);
+        let prog = p.parse_program();
+        let e = Evaluator::new(Rc::new(RefCell::new(Environment::new(None))));
+
+        assert_eq!(p.get_errors().len(), nr_err, "More than 0 errors");
+        assert_eq!(
+            prog.statements.len(),
+            nr_stmt,
+            "Incorrect number of statements"
+        );
+
+        (prog, e)
+    }
+
     #[test]
     fn test_eval_literal() {
         let s = String::from("5; 10; true; false;");
-
-        let l = Lexer::new(&s);
-        let mut p = Parser::new(l);
-        let prog = p.parse_program();
-        let mut e = Evaluator::new(Rc::new(RefCell::new(Environment::new(None))));
-
-        assert_eq!(p.get_errors().len(), 0, "More than 0 errors");
-        assert_eq!(prog.statements.len(), 4, "Incorrect number of statements");
+        let (prog, mut e) = helper_setup(&s, 0, 4);
 
         let corr = [
             Object::Int(5),
@@ -439,28 +471,13 @@ mod tests {
             Object::Boolean(false),
         ];
 
-        for (i, v) in corr.iter().enumerate() {
-            assert_eq!(
-                *v,
-                e.eval_statement(&prog.statements[i])
-                    .expect("This must be an OK value"),
-                "Error in statement {}",
-                i + 1
-            );
-        }
+        helper_obj(&corr, &mut e, &prog);
     }
 
     #[test]
     fn test_eval_prefix() {
         let s = String::from("!true; !false; !!!false; -5; -400;");
-
-        let l = Lexer::new(&s);
-        let mut p = Parser::new(l);
-        let prog = p.parse_program();
-        let mut e = Evaluator::new(Rc::new(RefCell::new(Environment::new(None))));
-
-        assert_eq!(p.get_errors().len(), 0, "More than 0 errors");
-        assert_eq!(prog.statements.len(), 5, "Incorrect number of statements");
+        let (prog, mut e) = helper_setup(&s, 0, 5);
 
         let corr = [
             Object::Boolean(false),
@@ -470,15 +487,7 @@ mod tests {
             Object::Int(-400),
         ];
 
-        for (i, v) in corr.iter().enumerate() {
-            assert_eq!(
-                *v,
-                e.eval_statement(&prog.statements[i])
-                    .expect("This must be an OK value"),
-                "Error in statement {}",
-                i + 1
-            );
-        }
+        helper_obj(&corr, &mut e, &prog);
     }
 
     #[test]
@@ -486,14 +495,7 @@ mod tests {
         let s = String::from(
             "5+5;5-5;5*5;5/5;5>5;5<5;5==5;5!=5;(1<2)==true;(1<2)==false;\"Hello \" + \"World!\"; 9%2;",
         );
-
-        let l = Lexer::new(&s);
-        let mut p = Parser::new(l);
-        let prog = p.parse_program();
-        let mut e = Evaluator::new(Rc::new(RefCell::new(Environment::new(None))));
-
-        assert_eq!(p.get_errors().len(), 0, "More than 0 errors");
-        assert_eq!(prog.statements.len(), 12, "Incorrect number of statements");
+        let (prog, mut e) = helper_setup(&s, 0, 12);
 
         let corr = [
             Object::Int(10),
@@ -510,46 +512,23 @@ mod tests {
             Object::Int(1),
         ];
 
-        for (i, v) in corr.iter().enumerate() {
-            assert_eq!(
-                *v,
-                e.eval_statement(&prog.statements[i])
-                    .expect("This must be an OK value"),
-                "Error in statement {}",
-                i + 1
-            );
-        }
+        helper_obj(&corr, &mut e, &prog);
     }
 
     #[test]
     fn test_eval_if() {
         let s =
             String::from("if(true){10}; if(false){10}; if(false){5}else{10}; if(true){5}else{10};");
-
-        let l = Lexer::new(&s);
-        let mut p = Parser::new(l);
-        let prog = p.parse_program();
-        let mut e = Evaluator::new(Rc::new(RefCell::new(Environment::new(None))));
-
-        assert_eq!(p.get_errors().len(), 0, "More than 0 errors");
-        assert_eq!(prog.statements.len(), 4, "Incorrect number of statements");
+        let (prog, mut e) = helper_setup(&s, 0, 4);
 
         let corr = [
             Object::Int(10),
-            Object::Null,
+            Object::String(Rc::from("")),
             Object::Int(10),
             Object::Int(5),
         ];
 
-        for (i, v) in corr.iter().enumerate() {
-            assert_eq!(
-                *v,
-                e.eval_statement(&prog.statements[i])
-                    .expect("This must be an OK value"),
-                "Error in statement {}",
-                i + 1
-            );
-        }
+        helper_obj(&corr, &mut e, &prog);
     }
 
     #[test]
@@ -557,14 +536,7 @@ mod tests {
         let s = String::from(
             "if (true) {9; return 10;}; if (false) {return 10; 9} else {return 9; 10;}; if (true) {9; 10;}; if (true) { if (true) { return 10; } return 1; };",
         );
-
-        let l = Lexer::new(&s);
-        let mut p = Parser::new(l);
-        let prog = p.parse_program();
-        let mut e = Evaluator::new(Rc::new(RefCell::new(Environment::new(None))));
-
-        assert_eq!(p.get_errors().len(), 0, "More than 0 errors");
-        assert_eq!(prog.statements.len(), 4, "Incorrect number of statements");
+        let (prog, mut e) = helper_setup(&s, 0, 4);
 
         let corr = [
             Object::Return(Box::new(Object::Int(10))),
@@ -573,28 +545,13 @@ mod tests {
             Object::Return(Box::new(Object::Int(10))),
         ];
 
-        for (i, v) in corr.iter().enumerate() {
-            assert_eq!(
-                *v,
-                e.eval_statement(&prog.statements[i])
-                    .expect("This must be an OK value"),
-                "Error in statement {}",
-                i + 1
-            );
-        }
+        helper_obj(&corr, &mut e, &prog);
     }
 
     #[test]
     fn test_err() {
         let s = String::from("true > 5; 5 + true; true + true; -true; if (5) {10;}; if (true) { if (true) { return true + false; } return 5; }; x;");
-
-        let l = Lexer::new(&s);
-        let mut p = Parser::new(l);
-        let prog = p.parse_program();
-        let mut e = Evaluator::new(Rc::new(RefCell::new(Environment::new(None))));
-
-        assert_eq!(p.get_errors().len(), 0, "More than 0 errors");
-        assert_eq!(prog.statements.len(), 7, "Incorrect number of statements");
+        let (prog, mut e) = helper_setup(&s, 0, 7);
 
         let corr = [
             EvalErr::NotInt(Object::Boolean(true)),
@@ -610,53 +567,28 @@ mod tests {
             EvalErr::UnboundIdent(String::from("x")),
         ];
 
-        for (i, v) in corr.iter().enumerate() {
-            assert_eq!(
-                *v,
-                e.eval_statement(&prog.statements[i])
-                    .expect_err("This should never be OK"),
-                "Error in statement {}",
-                i + 1
-            );
-        }
+        helper_err(&corr, &mut e, &prog);
     }
 
     #[test]
     fn test_eval_let() {
         let s = String::from("let x = 10; x; let y = x + 10; y;");
+        let (prog, mut e) = helper_setup(&s, 0, 4);
 
-        let l = Lexer::new(&s);
-        let mut p = Parser::new(l);
-        let prog = p.parse_program();
-        let mut e = Evaluator::new(Rc::new(RefCell::new(Environment::new(None))));
+        let corr = [
+            Object::String(Rc::from("")),
+            Object::Int(10),
+            Object::String(Rc::from("")),
+            Object::Int(20),
+        ];
 
-        assert_eq!(p.get_errors().len(), 0, "More than 0 errors");
-        assert_eq!(prog.statements.len(), 4, "Incorrect number of statements");
-
-        let corr = [Object::Null, Object::Int(10), Object::Null, Object::Int(20)];
-
-        for (i, v) in corr.iter().enumerate() {
-            assert_eq!(
-                *v,
-                e.eval_statement(&prog.statements[i])
-                    .expect("This must be an OK value"),
-                "Error in statement {}",
-                i + 1
-            );
-        }
+        helper_obj(&corr, &mut e, &prog);
     }
 
     #[test]
     fn test_eval_fn() {
         let s = String::from("fn(){2;}; fn(x){x;}; fn(x, y){x+y;};");
-
-        let l = Lexer::new(&s);
-        let mut p = Parser::new(l);
-        let prog = p.parse_program();
-        let mut e = Evaluator::new(Rc::new(RefCell::new(Environment::new(None))));
-
-        assert_eq!(p.get_errors().len(), 0, "More than 0 errors");
-        assert_eq!(prog.statements.len(), 3, "Incorrect number of statements");
+        let (prog, mut e) = helper_setup(&s, 0, 3);
 
         let corr = [
             Object::Function(
@@ -686,46 +618,23 @@ mod tests {
             ),
         ];
 
-        for (i, v) in corr.iter().enumerate() {
-            assert_eq!(
-                *v,
-                e.eval_statement(&prog.statements[i])
-                    .expect("This must be an OK value"),
-                "Error in statement {}",
-                i + 1
-            );
-        }
+        helper_obj(&corr, &mut e, &prog);
     }
 
     #[test]
     fn test_eval_call() {
         let s = String::from("let addone = fn(x) {x + 1;}; addone(9); let adder = fn (x) { fn(y) {x + y} }; let newAdder = adder(9); newAdder(10);");
-
-        let l = Lexer::new(&s);
-        let mut p = Parser::new(l);
-        let prog = p.parse_program();
-        let mut e = Evaluator::new(Rc::new(RefCell::new(Environment::new(None))));
-
-        assert_eq!(p.get_errors().len(), 0, "More than 0 errors");
-        assert_eq!(prog.statements.len(), 5, "Incorrect number of statements");
+        let (prog, mut e) = helper_setup(&s, 0, 5);
 
         let corr = [
-            Object::Null,
+            Object::String(Rc::from("")),
             Object::Int(10),
-            Object::Null,
-            Object::Null,
+            Object::String(Rc::from("")),
+            Object::String(Rc::from("")),
             Object::Int(19),
         ];
 
-        for (i, v) in corr.iter().enumerate() {
-            assert_eq!(
-                *v,
-                e.eval_statement(&prog.statements[i])
-                    .expect("This must be an OK value"),
-                "Error in statement {}",
-                i + 1
-            );
-        }
+        helper_obj(&corr, &mut e, &prog);
     }
 
     #[test]
@@ -772,15 +681,7 @@ mod tests {
             Object::List(vec![Object::Int(1), Object::Int(2), Object::Int(3)]),
         ];
 
-        for (i, v) in corr.iter().enumerate() {
-            assert_eq!(
-                *v,
-                e.eval_statement(&prog.statements[i])
-                    .expect("This must be an OK value"),
-                "Error in statement {}",
-                i + 1
-            );
-        }
+        helper_obj(&corr, &mut e, &prog);
     }
 
     #[test]
@@ -806,41 +707,17 @@ mod tests {
             EvalErr::BuiltinError(format!("{}", BuiltinError::NotEnoughArgs)),
         ];
 
-        for (i, v) in corr.iter().enumerate() {
-            assert_eq!(
-                *v,
-                e.eval_statement(&prog.statements[i])
-                    .expect_err("This should never be OK"),
-                "Error in statement {}",
-                i + 1
-            );
-        }
+        helper_err(&corr, &mut e, &prog);
     }
 
     #[test]
     fn test_eval_arr_corr() {
         let s = String::from("let a = [1, 2]; a[0]");
+        let (prog, mut e) = helper_setup(&s, 0, 2);
 
-        let l = Lexer::new(&s);
-        let mut p = Parser::new(l);
-        let prog = p.parse_program();
-        let env = Rc::new(RefCell::new(Environment::new(None)));
-        let mut e = Evaluator::new(env);
+        let corr = [Object::String(Rc::from("")), Object::Int(1)];
 
-        assert_eq!(p.get_errors().len(), 0, "More than 0 errors");
-        assert_eq!(prog.statements.len(), 2, "Incorrect number of statements");
-
-        let corr = [Object::Null, Object::Int(1)];
-
-        for (i, v) in corr.iter().enumerate() {
-            assert_eq!(
-                *v,
-                e.eval_statement(&prog.statements[i])
-                    .expect("This must be an OK value"),
-                "Error in statement {}",
-                i + 1
-            );
-        }
+        helper_obj(&corr, &mut e, &prog);
     }
 
     #[test]
@@ -860,15 +737,7 @@ mod tests {
 
         let corr = [EvalErr::OutOfRange(-1), EvalErr::OutOfRange(0)];
 
-        for (i, v) in corr.iter().enumerate() {
-            assert_eq!(
-                *v,
-                e.eval_statement(&prog.statements[i])
-                    .expect_err("This should never be OK"),
-                "Error in statement {}",
-                i + 1
-            );
-        }
+        helper_err(&corr, &mut e, &prog);
     }
 
     #[test]
@@ -922,23 +791,15 @@ mod tests {
         assert_eq!(prog.statements.len(), 6, "Incorrect number of statements");
 
         let corr = [
-            Object::Null,
-            Object::Null,
+            Object::String(Rc::from("")),
+            Object::String(Rc::from("")),
             Object::List(vec![Object::Int(2), Object::Int(4), Object::Int(6)]),
-            Object::Null,
-            Object::Null,
+            Object::String(Rc::from("")),
+            Object::String(Rc::from("")),
             Object::Int(6),
         ];
 
-        for (i, v) in corr.iter().enumerate() {
-            assert_eq!(
-                *v,
-                e.eval_statement(&prog.statements[i])
-                    .expect("This must be an OK value"),
-                "Error in statement {}",
-                i + 1
-            );
-        }
+        helper_obj(&corr, &mut e, &prog);
     }
 
     #[test]
@@ -986,35 +847,19 @@ mod tests {
         assert_eq!(prog.statements.len(), 3, "Incorrect number of statements");
 
         let corr = [
-            Object::Null,
-            Object::Null,
+            Object::String(Rc::from("")),
+            Object::String(Rc::from("")),
             Object::String(Rc::from("WizzBuzzWizzBuzz")),
         ];
 
-        for (i, v) in corr.iter().enumerate() {
-            assert_eq!(
-                *v,
-                e.eval_statement(&prog.statements[i])
-                    .expect("This must be an OK value"),
-                "Error in statement {}",
-                i + 1
-            );
-        }
+        helper_obj(&corr, &mut e, &prog);
     }
 
     #[test]
     fn test_eval_map_corr() {
         let s =
             String::from("{1:1, 2:2}; {1:1, \"two\":\"two\"}[1]; {1:1, \"two\":\"two\"}[\"two\"];");
-
-        let l = Lexer::new(&s);
-        let mut p = Parser::new(l);
-        let prog = p.parse_program();
-        let env = Rc::new(RefCell::new(Environment::new(None)));
-        let mut e = Evaluator::new(env);
-
-        assert_eq!(p.get_errors().len(), 0, "More than 0 errors");
-        assert_eq!(prog.statements.len(), 3, "Incorrect number of statements");
+        let (prog, mut e) = helper_setup(&s, 0, 3);
 
         let mut map = HashMap::new();
         map.insert(Object::Int(1), Object::Int(1));
@@ -1026,40 +871,96 @@ mod tests {
             Object::String(Rc::from("two")),
         ];
 
-        for (i, v) in corr.iter().enumerate() {
-            assert_eq!(
-                *v,
-                e.eval_statement(&prog.statements[i])
-                    .expect("This must be an OK value"),
-                "Error in statement {}",
-                i + 1
-            );
-        }
+        helper_obj(&corr, &mut e, &prog);
     }
 
     #[test]
     fn test_eval_map_err() {
         let s = String::from("{1:1}[2];");
-
-        let l = Lexer::new(&s);
-        let mut p = Parser::new(l);
-        let prog = p.parse_program();
-        let env = Rc::new(RefCell::new(Environment::new(None)));
-        let mut e = Evaluator::new(env);
-
-        assert_eq!(p.get_errors().len(), 0, "More than 0 errors");
-        assert_eq!(prog.statements.len(), 1, "Incorrect number of statements");
+        let (prog, mut e) = helper_setup(&s, 0, 1);
 
         let corr = [EvalErr::NotInMap(Object::Int(2))];
 
-        for (i, v) in corr.iter().enumerate() {
-            assert_eq!(
-                *v,
-                e.eval_statement(&prog.statements[i])
-                    .expect_err("This should never be OK"),
-                "Error in statement {}",
-                i + 1
-            );
-        }
+        helper_err(&corr, &mut e, &prog);
+    }
+
+    #[test]
+    fn test_quote() {
+        let s = String::from("quote(5); quote(5 + 8); quote(myvar); quote(myvar + somevar);");
+        let (prog, mut e) = helper_setup(&s, 0, 4);
+
+        let corr = [
+            Object::Quote(Expression::Literal(Literal::Int(5))),
+            Object::Quote(Expression::Infix(
+                Infix::Plus,
+                Box::new(Expression::Literal(Literal::Int(5))),
+                Box::new(Expression::Literal(Literal::Int(8))),
+            )),
+            Object::Quote(Expression::Ident(Rc::from("myvar"))),
+            Object::Quote(Expression::Infix(
+                Infix::Plus,
+                Box::new(Expression::Ident(Rc::from("myvar"))),
+                Box::new(Expression::Ident(Rc::from("somevar"))),
+            )),
+        ];
+
+        helper_obj(&corr, &mut e, &prog);
+    }
+
+    #[test]
+    fn test_unquote() {
+        let s = String::from(
+            "let x = 10; quote(unquote(4));  quote(8 + unquote(4 + 4)); quote(unquote(4 + 4) + 8); quote(x); quote(unquote(x));",
+        );
+
+        let (prog, mut e) = helper_setup(&s, 0, 6);
+
+        let corr = [
+            Object::String(Rc::from("")),
+            Object::Quote(Expression::Literal(Literal::Int(4))),
+            Object::Quote(Expression::Infix(
+                Infix::Plus,
+                Box::new(Expression::Literal(Literal::Int(8))),
+                Box::new(Expression::Literal(Literal::Int(8))),
+            )),
+            Object::Quote(Expression::Infix(
+                Infix::Plus,
+                Box::new(Expression::Literal(Literal::Int(8))),
+                Box::new(Expression::Literal(Literal::Int(8))),
+            )),
+            Object::Quote(Expression::Ident(Rc::from("x"))),
+            Object::Quote(Expression::Literal(Literal::Int(10))),
+        ];
+
+        helper_obj(&corr, &mut e, &prog);
+    }
+
+    #[test]
+    fn test_unquote_in_quote() {
+        let s = String::from(
+            "quote(unquote(quote(4+4))); let quoted = quote(4+4); quote(unquote(4+4) + unquote(quoted));",
+        );
+
+        let (prog, mut e) = helper_setup(&s, 0, 3);
+
+        let corr = [
+            Object::Quote(Expression::Infix(
+                Infix::Plus,
+                Box::new(Expression::Literal(Literal::Int(4))),
+                Box::new(Expression::Literal(Literal::Int(4))),
+            )),
+            Object::String(Rc::from("")),
+            Object::Quote(Expression::Infix(
+                Infix::Plus,
+                Box::new(Expression::Literal(Literal::Int(8))),
+                Box::new(Expression::Infix(
+                    Infix::Plus,
+                    Box::new(Expression::Literal(Literal::Int(4))),
+                    Box::new(Expression::Literal(Literal::Int(4))),
+                )),
+            )),
+        ];
+
+        helper_obj(&corr, &mut e, &prog);
     }
 }
