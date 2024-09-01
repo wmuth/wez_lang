@@ -62,6 +62,7 @@ impl Lexer<'_> {
                     "false" | "penguin" => Token::False,
                     "fn" | "wez" => Token::Function,
                     "ice" | "if" => Token::If,
+                    "macro" => Token::Macro,
                     "northbound" | "return" => Token::Return,
                     "stonk" => Token::Plus,
                     _ => Token::Ident(Rc::from(ident)),
@@ -236,6 +237,8 @@ mod tests {
                   x[1];
 
                   10 % 2;
+
+                  macro(x, y) { x + y; };
                   ";
 
         let mut lex = Lexer::new(s);
@@ -355,6 +358,19 @@ mod tests {
             Token::Int(10),
             Token::Percent,
             Token::Int(2),
+            Token::Semicolon,
+            Token::Macro,
+            Token::Lparen,
+            Token::Ident(Rc::from("x")),
+            Token::Comma,
+            Token::Ident(Rc::from("y")),
+            Token::Rparen,
+            Token::Lbrace,
+            Token::Ident(Rc::from("x")),
+            Token::Plus,
+            Token::Ident(Rc::from("y")),
+            Token::Semicolon,
+            Token::Rbrace,
             Token::Semicolon,
             Token::Eof,
         ];

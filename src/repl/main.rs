@@ -12,6 +12,7 @@ use wez_lang::{
 /// Runs the repl
 fn main() -> Result<(), io::Error> {
     let env = Rc::new(RefCell::new(Environment::new(None)));
+    let macro_env = Rc::new(RefCell::new(Environment::new(None)));
     env.borrow_mut().add_map(get_builtin_fns());
 
     let mut input = String::new();
@@ -46,9 +47,18 @@ fn main() -> Result<(), io::Error> {
             }
         }
 
-        let mut e = Evaluator::new(Rc::clone(&env));
-        match e.eval_program(&pro) {
-            Ok(o) => println!("{o}"),
+        let mut e = Evaluator::new(Rc::clone(&macro_env));
+        let pro = e.define_macros(pro);
+        let pro = e.expand_macros(pro);
+
+        match pro {
+            Ok(p) => {
+                let mut e = Evaluator::new(Rc::clone(&env));
+                match e.eval_program(&p) {
+                    Ok(o) => println!("{o}"),
+                    Err(e) => eprintln!("{e}"),
+                }
+            }
             Err(e) => eprintln!("{e}"),
         }
 

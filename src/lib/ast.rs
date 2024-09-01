@@ -40,13 +40,17 @@ pub enum Expression {
         body: BlockStatement,
         params: Vec<Rc<str>>,
     },
+    Macro {
+        body: BlockStatement,
+        params: Vec<Rc<str>>,
+    },
 }
 
 impl Hash for Expression {
     fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
         match self {
             Self::Call { ident, .. } => ident.hash(state),
-            Self::Function { params, .. } => params.hash(state),
+            Self::Function { params, .. } | Self::Macro { params, .. } => params.hash(state),
             Self::Ident(r) => r.hash(state),
             Self::If { cond, .. } => cond.hash(state),
             Self::Index(b1, b2) | Self::Infix(_, b1, b2) => (b1, b2).hash(state),
@@ -136,6 +140,7 @@ impl Display for Expression {
         match self {
             Self::Call { args, ident } => write!(f, "{ident}({})", print_arr(args, ", ")),
             Self::Function { body, params } => write!(f, "fn({}) {body}", params.join(", ")),
+            Self::Macro { body, params } => write!(f, "macro({}) {body}", params.join(", ")),
             Self::Ident(s) => write!(f, "{s}"),
             Self::If { cond, alt, then } => write!(f, "If {cond} then {then} else {alt}"),
             Self::Index(a, i) => write!(f, "{a}[{i}]"),

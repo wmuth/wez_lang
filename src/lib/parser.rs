@@ -145,6 +145,7 @@ impl Parser<'_> {
             Token::Lbrace => self.parse_map(),
             Token::Lbracket => self.parse_arr(),
             Token::Lparen => self.parse_group(),
+            Token::Macro => self.parse_macro(),
             Token::String(_) => self.parse_str(),
             _ => Err(ParseError::UnexpectedToken(format!(
                 "No prefix parser for: {}",
@@ -500,6 +501,30 @@ impl Parser<'_> {
         self.next();
 
         Ok(Expression::Index(Box::new(l), Box::new(exprs)))
+    }
+
+    fn parse_macro(&mut self) -> Result<Expression, ParseError> {
+        if self.peek_tok != Token::Lparen {
+            return Err(ParseError::UnexpectedToken(format!(
+                "Exptected ( after macro, was: {}",
+                self.peek_tok
+            )));
+        }
+        self.next();
+
+        let params = self.parse_params()?;
+
+        if self.peek_tok != Token::Lbrace {
+            return Err(ParseError::UnexpectedToken(format!(
+                "Exptected start of body {{ after macro params ), was: {}",
+                self.peek_tok
+            )));
+        }
+        self.next();
+
+        let body = self.parse_block()?;
+
+        Ok(Expression::Macro { body, params })
     }
 
     fn next(&mut self) {
@@ -969,6 +994,33 @@ mod tests {
                 Box::new(Expression::Literal(Literal::Int(0))),
             )),
         ];
+
+        for (i, v) in corr.iter().enumerate() {
+            assert_eq!(*v, prog.statements[i], "Error in statement {}", i + 1);
+        }
+    }
+
+    #[test]
+    fn test_macro() {
+        let s = Rc::from("macro (x, y) { x + y; };");
+
+        let l = Lexer::new(&s);
+        let mut p = Parser::new(l);
+        let prog = p.parse_program();
+
+        assert_eq!(p.get_errors().len(), 0, "More than 0 errors");
+        assert_eq!(prog.statements.len(), 1, "Incorrect number of statements");
+
+        let corr = [Statement::Expression(Expression::Macro {
+            body: BlockStatement {
+                statements: vec![Statement::Expression(Expression::Infix(
+                    Infix::Plus,
+                    Box::new(Expression::Ident(Rc::from("x"))),
+                    Box::new(Expression::Ident(Rc::from("y"))),
+                ))],
+            },
+            params: vec![Rc::from("x"), Rc::from("y")],
+        })];
 
         for (i, v) in corr.iter().enumerate() {
             assert_eq!(*v, prog.statements[i], "Error in statement {}", i + 1);

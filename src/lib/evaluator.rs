@@ -4,7 +4,7 @@ use crate::{
     ast::{BlockStatement, Expression, Infix, Literal, Prefix, Program, Statement},
     builtins::BuiltinError,
     environment::Environment,
-    modifier::modify_expr,
+    modifier::{modify_expr, modify_prg},
     object::Object,
 };
 
@@ -16,6 +16,7 @@ pub enum EvalErr {
     NotBool(Object),
     NotInMap(Object),
     NotInt(Object),
+    NotQuoteInMacro,
     OutOfRange(isize),
     UnboundIdent(String),
     UnexpectedExpression(String),
@@ -28,6 +29,7 @@ impl Display for EvalErr {
             Self::NotBool(o) => write!(f, "Value {o} was not bool"),
             Self::NotInMap(o) => write!(f, "Key {o} not in map"),
             Self::NotInt(o) => write!(f, "Value {o} was not int"),
+            Self::NotQuoteInMacro => write!(f, "Macro has to return a quoted object"),
             Self::OutOfRange(i) => write!(f, "Index {i} out of range"),
             Self::UnboundIdent(s) => write!(f, "Ident {s} not bound"),
             Self::UnexpectedExpression(s) => write!(f, "{s}"),
@@ -53,6 +55,47 @@ impl Evaluator {
     #[must_use]
     pub fn new(env: Rc<RefCell<Environment>>) -> Self {
         Self { env }
+    }
+
+    #[must_use]
+    pub fn define_macros(&self, p: Program) -> Program {
+        let mut prog_no_macro = Vec::with_capacity(p.statements.capacity());
+
+        for s in p.statements {
+            let o = if let Statement::Let {
+                expr: Expression::Macro { body, params },
+                ref ident,
+            } = s
+            {
+                let macro_object = Object::Macro(
+                    params.clone(),
+                    body.clone(),
+                    Rc::new(RefCell::new(Environment::new(Some(Rc::clone(&self.env))))),
+                );
+
+                self.env
+                    .borrow_mut()
+                    .set(Rc::clone(ident), Rc::new(macro_object));
+
+                None
+            } else {
+                Some(s)
+            };
+
+            if let Some(s) = o {
+                prog_no_macro.push(s);
+            }
+        }
+
+        Program {
+            statements: prog_no_macro,
+        }
+    }
+
+    pub fn expand_macros(&mut self, p: Program) -> Result<Program, EvalErr> {
+        let modified = modify_prg(p, self, eval_macro)?;
+
+        Ok(modified)
     }
 
     /// Evaluates a [`Program`] to an [`Object`] or [`EvalErr`]
@@ -103,10 +146,11 @@ impl Evaluator {
             Expression::Call { args, ident } => self.eval_call(args, ident),
             Expression::Function { body, params } => Ok(self.eval_function(body, params)),
             Expression::Ident(s) => self.eval_ident(s),
-            Expression::Index(a, i) => self.eval_index(a, i),
             Expression::If { cond, then, alt } => self.eval_if(cond, then, alt),
+            Expression::Index(a, i) => self.eval_index(a, i),
             Expression::Infix(i, l, r) => self.eval_infix(i, l, r),
             Expression::Literal(l) => self.eval_literal(l),
+            Expression::Macro { .. } => todo!(),
             Expression::Prefix(p, e) => self.eval_prefix(p, e),
         }
     }
@@ -340,6 +384,59 @@ fn eval_unquote(ev: &mut Evaluator, e: Expression) -> Result<Expression, EvalErr
     }
 }
 
+fn eval_macro(ev: &mut Evaluator, e: Expression) -> Result<Expression, EvalErr> {
+    match e {
+        Expression::Call {
+            ref args,
+            ref ident,
+        } => match **ident {
+            Expression::Ident(ref s) => {
+                let macopt = ev.env.borrow_mut().get(s);
+                match macopt {
+                    Some(ref mr) => match **mr {
+                        Object::Macro(ref params, ref bs, ref env) => {
+                            if params.len() != args.len() {
+                                return Err(EvalErr::IncorrectNrOfArgs(params.len()));
+                            }
+
+                            let e_args: Vec<Rc<Object>> = args
+                                .iter()
+                                .map(|arg0: &Expression| Object::Quote(arg0.clone()))
+                                .map(Rc::new)
+                                .collect();
+
+                            let old_env = Rc::clone(&ev.env);
+                            let mc_env =
+                                Rc::new(RefCell::new(Environment::new(Some(Rc::clone(env)))));
+
+                            for (i, p) in params.iter().enumerate() {
+                                if let Some(v) = e_args.get(i) {
+                                    mc_env.borrow_mut().set(Rc::clone(p), Rc::clone(v));
+                                }
+                            }
+
+                            ev.env = Rc::new(RefCell::new(Environment::new(Some(mc_env))));
+
+                            let obj = ev.eval_blockstatement(bs)?;
+
+                            ev.env = old_env;
+
+                            match obj {
+                                Object::Quote(e) => Ok(e),
+                                _ => Err(EvalErr::NotQuoteInMacro),
+                            }
+                        }
+                        _ => Ok(e),
+                    },
+                    None => Ok(e),
+                }
+            }
+            _ => Ok(e),
+        },
+        _ => Ok(e),
+    }
+}
+
 fn infix_lit_cmp(i: &Infix, le: &Object, re: &Object) -> Result<Object, EvalErr> {
     match i {
         Infix::Plus => infix_plus(le, re),
@@ -402,6 +499,7 @@ fn obj_to_expr(o: Object) -> Expression {
         Object::List(l) => {
             Expression::Literal(Literal::List(l.into_iter().map(obj_to_expr).collect()))
         }
+        Object::Macro(p, b, _) => Expression::Macro { body: b, params: p },
         Object::Map(hm) => Expression::Literal(Literal::Map(
             hm.into_iter()
                 .map(|(k, v)| (obj_to_expr(k), obj_to_expr(v)))
@@ -962,5 +1060,123 @@ mod tests {
         ];
 
         helper_obj(&corr, &mut e, &prog);
+    }
+
+    #[test]
+    fn test_define_macros() {
+        let s = String::from(
+            "let num = 1; let addfunc = fn(x, y) { x + y }; let addmacro = macro(x, y) { x + y };",
+        );
+
+        let l = Lexer::new(&s);
+        let mut p = Parser::new(l);
+        let prog = p.parse_program();
+        let e = Evaluator::new(Rc::new(RefCell::new(Environment::new(None))));
+        let new_prog = e.define_macros(prog);
+
+        assert_eq!(p.get_errors().len(), 0, "More than 0 errors");
+        assert_eq!(
+            new_prog.statements.len(),
+            2,
+            "Incorrect number of statements"
+        );
+
+        let corr = Some(Rc::from(Object::Macro(
+            vec![Rc::from("x"), Rc::from("y")],
+            BlockStatement {
+                statements: vec![Statement::Expression(Expression::Infix(
+                    Infix::Plus,
+                    Box::new(Expression::Ident(Rc::from("x"))),
+                    Box::new(Expression::Ident(Rc::from("y"))),
+                ))],
+            },
+            Rc::new(RefCell::new(Environment::new(Some(Rc::clone(&e.env))))),
+        )));
+
+        assert_eq!(e.env.borrow_mut().get("addmacro"), corr);
+        assert_eq!(e.env.borrow_mut().get("num"), None);
+        assert_eq!(e.env.borrow_mut().get("addfunc"), None);
+    }
+
+    #[test]
+    fn test_expand_macros() {
+        let s = String::from("let infix = macro() { quote(1+2) }; infix(); let reverse = macro(a, b) { quote(unquote(b) - unquote(a)) }; reverse(2 + 2, 10 - 5);");
+
+        let l = Lexer::new(&s);
+        let mut p = Parser::new(l);
+        let prog = p.parse_program();
+        let mut e = Evaluator::new(Rc::new(RefCell::new(Environment::new(None))));
+        let prog = e.define_macros(prog);
+        let prog = e.expand_macros(prog).expect("Input should not error");
+
+        assert_eq!(p.get_errors().len(), 0, "More than 0 errors");
+        assert_eq!(prog.statements.len(), 2, "Incorrect number of statements");
+
+        let corr = [
+            Statement::Expression(Expression::Infix(
+                Infix::Plus,
+                Box::new(Expression::Literal(Literal::Int(1))),
+                Box::new(Expression::Literal(Literal::Int(2))),
+            )),
+            Statement::Expression(Expression::Infix(
+                Infix::Minus,
+                Box::new(Expression::Infix(
+                    Infix::Minus,
+                    Box::new(Expression::Literal(Literal::Int(10))),
+                    Box::new(Expression::Literal(Literal::Int(5))),
+                )),
+                Box::new(Expression::Infix(
+                    Infix::Plus,
+                    Box::new(Expression::Literal(Literal::Int(2))),
+                    Box::new(Expression::Literal(Literal::Int(2))),
+                )),
+            )),
+        ];
+
+        for (i, v) in corr.iter().enumerate() {
+            assert_eq!(*v, prog.statements[i], "Error in statement {}", i + 1);
+        }
+    }
+
+    #[test]
+    fn test_advanced_macro() {
+        let s = String::from("let unless = macro(c, th, el){quote(if(!(unquote(c))){unquote(th)}else{unquote(el)});}; unless(10>5, print(\"not great\"), print(\"great\"))");
+
+        let l = Lexer::new(&s);
+        let mut p = Parser::new(l);
+        let prog = p.parse_program();
+        let mut e = Evaluator::new(Rc::new(RefCell::new(Environment::new(None))));
+        let prog = e.define_macros(prog);
+        let prog = e.expand_macros(prog).expect("Input should not error");
+
+        assert_eq!(p.get_errors().len(), 0, "More than 0 errors");
+        assert_eq!(prog.statements.len(), 1, "Incorrect number of statements");
+
+        let corr = [Statement::Expression(Expression::If {
+            cond: Box::new(Expression::Prefix(
+                Prefix::Not,
+                Box::new(Expression::Infix(
+                    Infix::More,
+                    Box::new(Expression::Literal(Literal::Int(10))),
+                    Box::new(Expression::Literal(Literal::Int(5))),
+                )),
+            )),
+            then: BlockStatement {
+                statements: vec![Statement::Expression(Expression::Call {
+                    args: vec![Expression::Literal(Literal::String(Rc::from("not great")))],
+                    ident: Box::new(Expression::Ident(Rc::from("print"))),
+                })],
+            },
+            alt: BlockStatement {
+                statements: vec![Statement::Expression(Expression::Call {
+                    args: vec![Expression::Literal(Literal::String(Rc::from("great")))],
+                    ident: Box::new(Expression::Ident(Rc::from("print"))),
+                })],
+            },
+        })];
+
+        for (i, v) in corr.iter().enumerate() {
+            assert_eq!(*v, prog.statements[i], "Error in statement {}", i + 1);
+        }
     }
 }
