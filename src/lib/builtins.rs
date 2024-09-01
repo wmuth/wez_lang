@@ -5,27 +5,40 @@ use crate::object::Object;
 /// Gets a map of all the builtin functions where key is the name of the function and object is the
 /// [`Object::Builtin`] variant for this builtin function
 pub fn get_builtin_fns() -> HashMap<Rc<str>, Rc<Object>> {
-    let print = Rc::from(Object::Builtin(print, None));
-    let push = Rc::from(Object::Builtin(push, Some(2)));
+    fn create_builtin(
+        s: &str,
+        f: fn(&[Object]) -> Result<Object, BuiltinError>,
+        o: Option<u8>,
+        map: &mut HashMap<Rc<str>, Rc<Object>>,
+    ) {
+        let x = Rc::from(s);
+        map.insert(
+            Rc::clone(&x),
+            Rc::from(Object::Builtin(f, o, Rc::clone(&x))),
+        );
+    }
+
+    let print_name = Rc::from("print");
+    let print = Rc::from(Object::Builtin(print, None, Rc::clone(&print_name)));
+    let push_name = Rc::from("print");
+    let push = Rc::from(Object::Builtin(push, Some(2), Rc::clone(&push_name)));
 
     let mut map = HashMap::new();
-    map.insert(Rc::from("first"), Rc::from(Object::Builtin(first, Some(1))));
-    map.insert(
-        Rc::from("insert"),
-        Rc::from(Object::Builtin(insert, Some(3))),
-    );
+    create_builtin("first", first, Some(1), &mut map);
+    create_builtin("insert", insert, Some(3), &mut map);
+    create_builtin("insert", insert, Some(3), &mut map);
+    create_builtin("last", last, Some(1), &mut map);
+    create_builtin("len", len, Some(1), &mut map);
+    create_builtin("rest", rest, Some(1), &mut map);
     map.insert(Rc::from("invest"), Rc::clone(&push));
-    map.insert(Rc::from("last"), Rc::from(Object::Builtin(last, Some(1))));
-    map.insert(Rc::from("len"), Rc::from(Object::Builtin(len, Some(1))));
     map.insert(Rc::from("print"), Rc::clone(&print));
     map.insert(Rc::from("push"), Rc::clone(&push));
-    map.insert(Rc::from("rest"), Rc::from(Object::Builtin(rest, Some(1))));
     map.insert(Rc::from("roar"), Rc::clone(&print));
     map
 }
 
 pub enum BuiltinError {
-    /// .len() returns usize but [`Object::Int`] is isize. Should never be an issue in practice
+    /// .`len()` returns usize but [`Object::Int`] is isize. Should never be an issue in practice
     LenToInt,
     /// If args checking was bypassed or if passing nothing to a builtin with None on args
     NotEnoughArgs,
@@ -62,9 +75,9 @@ fn len(v: &[Object]) -> Result<Object, BuiltinError> {
 /// Gets the first object in the list of objects or a string
 fn first(v: &[Object]) -> Result<Object, BuiltinError> {
     match v.first() {
-        Some(Object::List(a)) => Ok(a.first().unwrap_or(&Object::Null).clone()),
+        Some(Object::List(a)) => Ok(a.first().unwrap_or(&Object::String(Rc::from(""))).clone()),
         Some(Object::String(s)) => s.chars().next().map_or_else(
-            || Ok(Object::Null),
+            || Ok(Object::String(Rc::from(""))),
             |c| Ok(Object::String(Rc::from(c.to_string()))),
         ),
         _ => Err(BuiltinError::WrongType(String::from("List or String"))),
@@ -74,9 +87,9 @@ fn first(v: &[Object]) -> Result<Object, BuiltinError> {
 /// Gets the last object in the list of objects or a string
 fn last(v: &[Object]) -> Result<Object, BuiltinError> {
     match v.first() {
-        Some(Object::List(a)) => Ok(a.last().unwrap_or(&Object::Null).clone()),
+        Some(Object::List(a)) => Ok(a.last().unwrap_or(&Object::String(Rc::from(""))).clone()),
         Some(Object::String(s)) => s.chars().last().map_or_else(
-            || Ok(Object::Null),
+            || Ok(Object::String(Rc::from(""))),
             |c| Ok(Object::String(Rc::from(c.to_string()))),
         ),
         _ => Err(BuiltinError::WrongType(String::from("List or String"))),
@@ -95,23 +108,21 @@ fn rest(v: &[Object]) -> Result<Object, BuiltinError> {
 /// Pushes an object into the end of a list of objects or a string
 fn push(v: &[Object]) -> Result<Object, BuiltinError> {
     if let Some(o) = v.get(1) {
-        if *o != Object::Null {
-            return match v.first() {
-                Some(Object::List(a)) => Ok(Object::List({
-                    let mut x = a.clone();
-                    x.push(o.clone());
-                    x
-                })),
-                Some(Object::String(s)) => {
-                    if let Object::String(ss) = o {
-                        Ok(Object::String(Rc::from(s.to_string() + ss)))
-                    } else {
-                        Ok(Object::String(Rc::clone(s)))
-                    }
+        return match v.first() {
+            Some(Object::List(a)) => Ok(Object::List({
+                let mut x = a.clone();
+                x.push(o.clone());
+                x
+            })),
+            Some(Object::String(s)) => {
+                if let Object::String(ss) = o {
+                    Ok(Object::String(Rc::from(s.to_string() + ss)))
+                } else {
+                    Ok(Object::String(Rc::clone(s)))
                 }
-                _ => Err(BuiltinError::WrongType(String::from("List or String"))),
-            };
-        }
+            }
+            _ => Err(BuiltinError::WrongType(String::from("List or String"))),
+        };
     }
     Err(BuiltinError::NotEnoughArgs)
 }
@@ -119,21 +130,19 @@ fn push(v: &[Object]) -> Result<Object, BuiltinError> {
 /// Inserts an object into a map of objects
 fn insert(v: &[Object]) -> Result<Object, BuiltinError> {
     if let Some(o) = v.get(1) {
-        if *o != Object::Null {
-            return match v.first() {
-                Some(Object::Map(hm)) => v.get(2).map_or_else(
-                    || Err(BuiltinError::NotEnoughArgs),
-                    |ob| {
-                        Ok(Object::Map({
-                            let mut x = hm.clone();
-                            x.insert(o.clone(), ob.clone());
-                            x
-                        }))
-                    },
-                ),
-                _ => Err(BuiltinError::WrongType(String::from("Map"))),
-            };
-        }
+        return match v.first() {
+            Some(Object::Map(hm)) => v.get(2).map_or_else(
+                || Err(BuiltinError::NotEnoughArgs),
+                |ob| {
+                    Ok(Object::Map({
+                        let mut x = hm.clone();
+                        x.insert(o.clone(), ob.clone());
+                        x
+                    }))
+                },
+            ),
+            _ => Err(BuiltinError::WrongType(String::from("Map"))),
+        };
     }
     Err(BuiltinError::NotEnoughArgs)
 }
@@ -147,5 +156,5 @@ fn print(v: &[Object]) -> Result<Object, BuiltinError> {
     for o in v {
         println!("{o}");
     }
-    Ok(Object::Null)
+    Ok(Object::String(Rc::from("")))
 }

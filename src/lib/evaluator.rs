@@ -4,6 +4,7 @@ use crate::{
     ast::{BlockStatement, Expression, Infix, Literal, Prefix, Program, Statement},
     builtins::BuiltinError,
     environment::Environment,
+    modifier::modify_expr,
     object::Object,
 };
 
@@ -59,16 +60,16 @@ impl Evaluator {
     /// # Errors
     /// If evaluation was not possible for one of many reasons, returns [`EvalErr`]
     pub fn eval_program(&mut self, p: &Program) -> Result<Object, EvalErr> {
-        let mut result = Object::Null;
+        let mut result = None;
 
         for s in &p.statements {
             match self.eval_statement(s)? {
                 Object::Return(o) => return Ok(*o),
-                other => result = other,
+                other => result = Some(other),
             }
         }
 
-        Ok(result)
+        Ok(result.unwrap_or(Object::String(Rc::from(""))))
     }
 
     /// Evaluates a [`Statement`] to and [`Object`] or [`EvalErr`]
@@ -84,17 +85,17 @@ impl Evaluator {
     }
 
     fn eval_blockstatement(&mut self, bs: &BlockStatement) -> Result<Object, EvalErr> {
-        let mut result = Object::Null;
+        let mut result = None;
 
         for s in &bs.statements {
-            result = self.eval_statement(s)?;
+            result = Some(self.eval_statement(s)?);
 
-            if let Object::Return(_) = result {
-                return Ok(result);
+            if let Some(Object::Return(e)) = result {
+                return Ok(Object::Return(e));
             }
         }
 
-        Ok(result)
+        Ok(result.unwrap_or(Object::String(Rc::from(""))))
     }
 
     fn eval_expression(&mut self, e: &Expression) -> Result<Object, EvalErr> {
@@ -115,7 +116,7 @@ impl Evaluator {
 
         self.env.borrow_mut().set(Rc::clone(ident), Rc::from(e));
 
-        Ok(Object::Null)
+        Ok(Object::String(Rc::from("")))
     }
 
     fn eval_return(&mut self, e: &Expression) -> Result<Object, EvalErr> {
@@ -123,6 +124,17 @@ impl Evaluator {
     }
 
     fn eval_call(&mut self, args: &[Expression], ident: &Expression) -> Result<Object, EvalErr> {
+        if Expression::Ident(Rc::from("quote")) == *ident {
+            if args.len() != 1 {
+                return Err(EvalErr::IncorrectNrOfArgs(1));
+            }
+
+            let to_mod = args[0].clone();
+            let modded = modify_expr(to_mod, self, eval_unquote)?;
+
+            return Ok(Object::Quote(modded));
+        }
+
         let func = self.eval_expression(ident)?;
 
         match func {
@@ -155,7 +167,7 @@ impl Evaluator {
 
                 obj
             }
-            Object::Builtin(f, nr_a) => {
+            Object::Builtin(f, nr_a, _) => {
                 if let Some(nr) = nr_a {
                     if nr as usize != args.len() {
                         return Err(EvalErr::IncorrectNrOfArgs(nr as usize));
@@ -175,11 +187,11 @@ impl Evaluator {
         }
     }
 
-    fn eval_function(&mut self, body: &BlockStatement, params: &[Rc<str>]) -> Object {
+    fn eval_function(&self, body: &BlockStatement, params: &[Rc<str>]) -> Object {
         Object::Function(params.into(), body.clone(), Rc::clone(&self.env))
     }
 
-    fn eval_ident(&mut self, s: &Rc<str>) -> Result<Object, EvalErr> {
+    fn eval_ident(&self, s: &Rc<str>) -> Result<Object, EvalErr> {
         self.env.borrow_mut().get(s).map_or_else(
             || Err(EvalErr::UnboundIdent(String::from(&*s.to_string()))),
             |v| Ok(Rc::unwrap_or_clone(v)),
@@ -308,6 +320,26 @@ impl Evaluator {
     }
 }
 
+fn eval_unquote(ev: &mut Evaluator, e: Expression) -> Result<Expression, EvalErr> {
+    match e {
+        Expression::Call {
+            ref args,
+            ref ident,
+        } => {
+            if Expression::Ident(Rc::from("unquote")) == **ident {
+                if args.len() != 1 {
+                    Err(EvalErr::IncorrectNrOfArgs(1))
+                } else {
+                    Ok(obj_to_expr(ev.eval_expression(&args[0])?))
+                }
+            } else {
+                Ok(e)
+            }
+        }
+        _ => Ok(e),
+    }
+}
+
 fn infix_lit_cmp(i: &Infix, le: &Object, re: &Object) -> Result<Object, EvalErr> {
     match i {
         Infix::Plus => infix_plus(le, re),
@@ -355,6 +387,29 @@ fn infix_plus(le: &Object, re: &Object) -> Result<Object, EvalErr> {
         _ => Err(EvalErr::UnexpectedExpression(String::from(
             "Can not add to anything but string and int",
         ))),
+    }
+}
+
+fn obj_to_expr(o: Object) -> Expression {
+    match o {
+        Object::Boolean(b) => Expression::Literal(Literal::Boolean(b)),
+        Object::Builtin(_, _, i) => Expression::Call {
+            args: Vec::new(),
+            ident: Box::new(Expression::Ident(Rc::clone(&i))),
+        },
+        Object::Function(p, b, _) => Expression::Function { body: b, params: p },
+        Object::Int(i) => Expression::Literal(Literal::Int(i)),
+        Object::List(l) => {
+            Expression::Literal(Literal::List(l.into_iter().map(obj_to_expr).collect()))
+        }
+        Object::Map(hm) => Expression::Literal(Literal::Map(
+            hm.into_iter()
+                .map(|(k, v)| (obj_to_expr(k), obj_to_expr(v)))
+                .collect(),
+        )),
+        Object::Quote(e) => e,
+        Object::Return(o) => obj_to_expr(*o),
+        Object::String(s) => Expression::Literal(Literal::String(s)),
     }
 }
 

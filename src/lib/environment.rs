@@ -40,7 +40,7 @@ impl Environment {
     ///
     /// # Params
     /// - `name` the key to get
-    pub fn get(&mut self, name: &str) -> Option<Rc<Object>> {
+    pub fn get(&self, name: &str) -> Option<Rc<Object>> {
         match self.map.get(name) {
             Some(o) => Some(Rc::clone(o)),
             None => self

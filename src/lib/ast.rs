@@ -1,5 +1,6 @@
 use std::{
     fmt::{Display, Write},
+    hash::Hash,
     rc::Rc,
 };
 
@@ -39,6 +40,20 @@ pub enum Expression {
         body: BlockStatement,
         params: Vec<Rc<str>>,
     },
+}
+
+impl Hash for Expression {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        match self {
+            Self::Call { ident, .. } => ident.hash(state),
+            Self::Function { params, .. } => params.hash(state),
+            Self::Ident(r) => r.hash(state),
+            Self::If { cond, .. } => cond.hash(state),
+            Self::Index(b1, b2) | Self::Infix(_, b1, b2) => (b1, b2).hash(state),
+            Self::Literal(_) => 0.hash(state),
+            Self::Prefix(_, b) => b.hash(state),
+        }
+    }
 }
 
 /// The literal values the language represents

@@ -409,7 +409,7 @@ impl Parser<'_> {
         }
     }
 
-    fn parse_str(&mut self) -> Result<Expression, ParseError> {
+    fn parse_str(&self) -> Result<Expression, ParseError> {
         match &self.cur_tok {
             Token::String(s) => Ok(Expression::Literal(Literal::String(s.clone()))),
             _ => Err(ParseError::UnexpectedToken(format!(
