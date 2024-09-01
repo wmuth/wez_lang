@@ -327,10 +327,10 @@ fn eval_unquote(ev: &mut Evaluator, e: Expression) -> Result<Expression, EvalErr
             ref ident,
         } => {
             if Expression::Ident(Rc::from("unquote")) == **ident {
-                if args.len() != 1 {
-                    Err(EvalErr::IncorrectNrOfArgs(1))
-                } else {
+                if args.len() == 1 {
                     Ok(obj_to_expr(ev.eval_expression(&args[0])?))
+                } else {
+                    Err(EvalErr::IncorrectNrOfArgs(1))
                 }
             } else {
                 Ok(e)

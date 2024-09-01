@@ -40,13 +40,15 @@ impl Environment {
     ///
     /// # Params
     /// - `name` the key to get
+    #[must_use]
     pub fn get(&self, name: &str) -> Option<Rc<Object>> {
-        match self.map.get(name) {
-            Some(o) => Some(Rc::clone(o)),
-            None => self
-                .parent
-                .as_ref()
-                .map_or_else(|| None, |parent| parent.borrow_mut().get(name)),
-        }
+        self.map.get(name).map_or_else(
+            || {
+                self.parent
+                    .as_ref()
+                    .map_or_else(|| None, |parent| parent.borrow_mut().get(name))
+            },
+            |o| Some(Rc::clone(o)),
+        )
     }
 }
