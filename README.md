@@ -110,3 +110,19 @@ More advanced implementations of wez lang - map and reduce on list with higher o
 🐻‍❄️ >>> sum([1, 2, 3]);
 => 6
 ```
+
+Wez now has macros! This allows you to write code which writes code, cool! Example of "unless" - an inverted if statement:
+```
+🐻‍❄️ >>> let unless = macro(condition, then, otherwise) {
+              quote(
+                  if (!(unquote(cond))) {
+                      unquote(then)
+                  } else {
+                      unquote(otherwise)
+                  }
+              )
+          };
+
+🐻‍❄️ >>> unless(10 > 5, print("10 is not greater than 5"), print("10 is greater than 5"));;
+=> "10 is greater than 5"
+```
